@@ -35,6 +35,11 @@ export class UsersService {
         return this.userModel.findOne({ email });
     }
 
+    /** Use only for login validation - returns user WITH password */
+    async getUserByEmailWithPassword(email: string): Promise<UserDocument | null> {
+        return this.userModel.findOne({ email }).select('+password');
+    }
+
     async getUserByUsername(username: string): Promise<UserDocument | null> {
         return this.userModel.findOne({ username });
     }
