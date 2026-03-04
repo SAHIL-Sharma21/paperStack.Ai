@@ -68,6 +68,9 @@ export class AuthService {
       if (error instanceof ConflictException) {
         throw error;
       }
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
       const mongoError = error as { code?: number; name?: string };
       if (
         mongoError.code === 11000 ||
