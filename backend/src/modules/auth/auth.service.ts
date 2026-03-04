@@ -7,6 +7,8 @@ import {
   Injectable,
   UnauthorizedException,
   ConflictException,
+  BadRequestException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { UsersService } from '../users/users.services';
@@ -14,6 +16,7 @@ import { SignupDto } from './dtos/signup.dto';
 import { LoginDto } from './dtos/login.dto';
 import { UserDocument } from '../users/user.schema';
 import { hashPassword, comparePassword } from '../../utils/password.util';
+import { normalizeLoginPayload, normalizeSignupPayload } from './helper';
 
 export interface JwtPayload {
   sub: string;
@@ -38,47 +41,83 @@ export class AuthService {
   ) {}
 
   async signup(signupDto: SignupDto): Promise<AuthResponse> {
-    const existingEmail = await this.usersService.getUserByEmail(
-      signupDto.email,
-    );
-    if (existingEmail) {
-      throw new ConflictException('Email already registered');
+    try {
+      //normalize the data before passing to the database
+      const { email, username } = normalizeSignupPayload(signupDto);
+
+      const existingEmail = await this.usersService.getUserByEmail(email);
+      if (existingEmail) {
+        throw new ConflictException('Email already registered');
+      }
+
+      const existingUsername =
+        await this.usersService.getUserByUsername(username);
+      if (existingUsername) {
+        throw new ConflictException('Username already taken');
+      }
+
+      const hashedPassword = await hashPassword(signupDto.password);
+      const user = await this.usersService.createUser({
+        email,
+        password: hashedPassword,
+        username,
+      });
+
+      return this.buildAuthResponse(user, 'User created successfully');
+    } catch (error) {
+      if (error instanceof ConflictException) {
+        throw error;
+      }
+      const mongoError = error as { code?: number; name?: string };
+      if (
+        mongoError.code === 11000 ||
+        mongoError.name === 'MongoError' ||
+        mongoError.name === 'MongoServerError'
+      ) {
+        throw new ConflictException('Email or username already registered');
+      }
+      throw new InternalServerErrorException(
+        'An error occurred while signing up',
+        { cause: error },
+      );
     }
-
-    const existingUsername = await this.usersService.getUserByUsername(
-      signupDto.username,
-    );
-    if (existingUsername) {
-      throw new ConflictException('Username already taken');
-    }
-
-    const hashedPassword = await hashPassword(signupDto.password);
-    const user = await this.usersService.createUser({
-      email: signupDto.email,
-      password: hashedPassword,
-      username: signupDto.username,
-    });
-
-    return this.buildAuthResponse(user, 'User created successfully');
   }
 
   async login(loginDto: LoginDto): Promise<AuthResponse> {
-    const user = await this.usersService.getUserByEmailWithPassword(
-      loginDto.email,
-    );
-    if (!user) {
-      throw new UnauthorizedException('Invalid email or password');
-    }
+    try {
+      const { emailOrUsername, isEmail } = normalizeLoginPayload(loginDto);
 
-    const isPasswordValid = await comparePassword(
-      loginDto.password,
-      user.password,
-    );
-    if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid email or password');
-    }
+      const user = isEmail
+        ? await this.usersService.getUserByEmailWithPassword(emailOrUsername)
+        : await this.usersService.getUserByUsernameWithPassword(
+            emailOrUsername,
+          );
 
-    return this.buildAuthResponse(user, 'User logged in successfully');
+      if (!user) {
+        throw new UnauthorizedException('Invalid email/username or password');
+      }
+
+      const isPasswordValid = await comparePassword(
+        loginDto.password,
+        user.password,
+      );
+      if (!isPasswordValid) {
+        throw new UnauthorizedException('Invalid email or password');
+      }
+
+      return this.buildAuthResponse(user, 'User logged in successfully');
+    } catch (error) {
+      if (
+        error instanceof UnauthorizedException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        'An error occurred while logging in',
+        { cause: error },
+      );
+    }
   }
 
   async validateUser(userId: string): Promise<UserDocument | null> {

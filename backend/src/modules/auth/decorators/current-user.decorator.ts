@@ -7,12 +7,15 @@ import { createParamDecorator, ExecutionContext } from '@nestjs/common';
 import { UserDocument } from '../../users/user.schema';
 
 export const CurrentUser = createParamDecorator(
-  (data: keyof UserDocument | undefined, ctx: ExecutionContext): UserDocument | string => {
+  <K extends keyof UserDocument>(
+    data: K | undefined,
+    ctx: ExecutionContext,
+  ): UserDocument | UserDocument[K] => {
     const request = ctx.switchToHttp().getRequest();
     const user = request.user as UserDocument;
 
-    if (data) {
-      return user?.[data] as string;
+    if (data !== undefined) {
+      return user[data] as UserDocument[K];
     }
 
     return user;

@@ -18,7 +18,7 @@ import { AuthService, AuthResponse } from './auth.service';
 import { SignupDto } from './dtos/signup.dto';
 import { LoginDto } from './dtos/login.dto';
 
-const COOKIE_MAX_AGE_MS = 60 * 60 * 1000; // 1 hour
+const DEFAULT_COOKIE_MAX_AGE_MS = 60 * 60 * 1000; // 1 hour
 
 @Controller('auth')
 export class AuthController {
@@ -51,6 +51,13 @@ export class AuthController {
   private setAuthCookie(res: ExpressResponse, token: string): void {
     const cookieName =
       this.configService.get<string>('AUTH_COOKIE_NAME') || 'access_token';
+    const configuredExpirySeconds = Number(
+      this.configService.get<string>('JWT_EXPIRATION_TIME'),
+    );
+    const cookieMaxAgeMs = Number.isFinite(configuredExpirySeconds) && configuredExpirySeconds > 0
+      ? configuredExpirySeconds * 1000
+      : DEFAULT_COOKIE_MAX_AGE_MS;
+
     const isProduction =
       this.configService.get<string>('NODE_ENV') === 'production';
 
@@ -58,7 +65,7 @@ export class AuthController {
       httpOnly: true,
       secure: isProduction,
       sameSite: isProduction ? 'strict' : 'lax',
-      maxAge: COOKIE_MAX_AGE_MS,
+      maxAge: cookieMaxAgeMs,
       path: '/',
     });
   }

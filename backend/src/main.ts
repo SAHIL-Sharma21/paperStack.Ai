@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import cookieParser from 'cookie-parser';
 import { AppModule } from './main/app.module';
+import { ValidationPipe } from '@nestjs/common';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
@@ -11,6 +12,13 @@ async function bootstrap() {
     abortOnError: true,
   });
   app.use(cookieParser());
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
+  );
   app.setGlobalPrefix('api/v1');
   app.enableShutdownHooks();
   await app.listen(process.env.PORT ?? 3000);
