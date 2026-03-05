@@ -32,7 +32,8 @@ export class DocumentsService {
       userId: new Types.ObjectId(createDto.userId),
       status: PROCESSING_STATUS as DocumentStatus,
     });
-    return doc.save();
+    const saved = await doc.save();
+    return saved;
   }
 
   async findByUserId(userId: string): Promise<DocumentDocument[]> {

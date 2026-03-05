@@ -15,6 +15,9 @@ import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Kafka } from 'kafkajs';
 
+const MAX_RETRIES = 5;
+const RETRY_DELAY_MS = 2000;
+
 @Injectable()
 export class KafkaService implements OnModuleInit, OnModuleDestroy {
   private kafka: Kafka;
@@ -33,6 +36,20 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
 
   async onModuleInit() {
     await this.producer.connect();
+
+    // Create topic if missing (avoids "leadership election" on first publish)
+    const topic = this.config.get<string>('KAFKA_TOPIC', 'document-processing');
+    try {
+      const admin = this.kafka.admin();
+      await admin.connect();
+      const existing = await admin.listTopics();
+      if (!existing.includes(topic)) {
+        await admin.createTopics({ topics: [{ topic, numPartitions: 1, replicationFactor: 1 }] });
+      }
+      await admin.disconnect();
+    } catch (err) {
+      console.warn('[KafkaService] onModuleInit - topic creation skipped:', (err as Error).message);
+    }
   }
 
   async onModuleDestroy() {
@@ -41,19 +58,28 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * Publish a document ID to Kafka for processing.
-   * Consumer will pick this up and run embeddings/RAG pipeline.
+   * Retries on "leadership election" and other transient errors.
    */
   async publishDocumentForProcessing(documentId: string): Promise<void> {
     const topic = this.config.get<string>('KAFKA_TOPIC', 'document-processing');
+    const payload = { documentId, timestamp: new Date().toISOString() };
 
-    await this.producer.send({
-      topic,
-      messages: [
-        {
-          key: documentId,
-          value: JSON.stringify({ documentId, timestamp: new Date().toISOString() }),
-        },
-      ],
-    });
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        await this.producer.send({
+          topic,
+          messages: [{ key: documentId, value: JSON.stringify(payload) }],
+        });
+        return;
+      } catch (err) {
+        const msg = (err as Error).message;
+        console.warn('[KafkaService] publishDocumentForProcessing() - attempt', attempt, 'failed:', msg);
+        if (attempt === MAX_RETRIES) {
+          console.error('[KafkaService] publishDocumentForProcessing() - all retries exhausted, rethrowing');
+          throw err;
+        }
+        await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+      }
+    }
   }
 }

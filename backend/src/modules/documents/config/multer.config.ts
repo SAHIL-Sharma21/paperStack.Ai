@@ -9,7 +9,7 @@
  */
 
 import { diskStorage } from 'multer';
-import { extname } from 'path';
+import { extname, join } from 'path';
 import { randomUUID } from 'crypto';
 import fs from 'fs';
 import { FILE_TYPES, MAX_SIZE_BYTES } from '../constant';
@@ -25,7 +25,8 @@ export const multerDocumentConfig = {
   storage: diskStorage({
     destination: (req, file, cb) => {
       // Temp dir - StorageService will move to final location
-      const tmpDir = process.cwd() + '/uploads/tmp';
+      const uploadRoot = process.env.UPLOAD_DIR || join(process.cwd(), 'uploads');
+      const tmpDir = join(uploadRoot, '/tmp');
       if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
       cb(null, tmpDir);
     },

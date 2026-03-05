@@ -21,6 +21,7 @@ import type { UserDocument } from '../users/user.schema';
 import { StorageService } from '../storage/storage.service';
 import { KafkaService } from '../kafka/kafka.service';
 import { multerDocumentConfig } from './config/multer.config';
+import { FAILED_STATUS } from './constant';
 
 @Controller('documents')
 @UseGuards(JwtAuthGuard)
@@ -62,7 +63,13 @@ export class DocumentsController {
     });
 
     // 3. Publish to Kafka - consumer will process (embeddings, vector DB, etc.)
-    await this.kafkaService.publishDocumentForProcessing(doc._id.toString());
+    try {
+      await this.kafkaService.publishDocumentForProcessing(doc._id.toString());
+    } catch (err) {
+      await this.documentsService.updateStatus(doc._id.toString(), FAILED_STATUS);
+      this.storageService.delete(storagePath);
+      throw err;
+    }
 
     return this.toResponseDto(doc);
   }

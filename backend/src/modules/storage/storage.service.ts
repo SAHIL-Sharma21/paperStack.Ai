@@ -54,9 +54,32 @@ export class StorageService {
     const storagePath = `${userId}/${uniqueName}`;
     const fullPath = path.join(this.uploadDir, storagePath);
 
-    fs.renameSync(file.path, fullPath);
+    try {
+      fs.renameSync(file.path, fullPath);
+    } catch (err: unknown) {
+      if ((err as NodeJS.ErrnoException).code === 'EXDEV') {
+        fs.copyFileSync(file.path, fullPath);
+        fs.unlinkSync(file.path);
+      } else {
+        throw err;
+      }
+    }
 
-    // Return path relative to upload root (userId/filename) - portable for S3 migration
     return { storagePath };
+  }
+
+  /**
+   * Deletes a file by storagePath (e.g. userId/filename.pdf).
+   */
+  delete(storagePath: string): void {
+    try {
+      const fullPath = path.join(this.uploadDir, storagePath);
+      if (fs.existsSync(fullPath)) {
+        fs.unlinkSync(fullPath);
+      }
+    } catch (err) {
+      console.error('[StorageService] delete() - error deleting file:', err);
+      throw err;
+    }
   }
 }
