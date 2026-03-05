@@ -14,9 +14,9 @@
 import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Kafka } from 'kafkajs';
+import { MAX_RETRIES, RETRY_DELAY_MS } from './constant';
+import { parseBrokers } from './helper';
 
-const MAX_RETRIES = 5;
-const RETRY_DELAY_MS = 2000;
 
 @Injectable()
 export class KafkaService implements OnModuleInit, OnModuleDestroy {
@@ -24,7 +24,8 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
   private producer: any;
 
   constructor(private config: ConfigService) {
-    const brokers = this.config.get<string>('KAFKA_BROKERS', 'localhost:9092').split(',');
+    const raw = this.config.get<string>('KAFKA_BROKERS', 'localhost:9092');
+    const brokers = parseBrokers(raw);
     const clientId = this.config.get<string>('KAFKA_CLIENT_ID', 'paperstack-backend');
 
     this.kafka = new Kafka({
