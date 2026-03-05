@@ -46,6 +46,9 @@ lerna-debug.log*
 .temp
 .tmp
 
+# Local uploads (use S3 in production)
+/uploads
+
 # Runtime data
 pids
 *.pid
