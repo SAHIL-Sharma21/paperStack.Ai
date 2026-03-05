@@ -39,16 +39,17 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
 
     // Create topic if missing (avoids "leadership election" on first publish)
     const topic = this.config.get<string>('KAFKA_TOPIC', 'document-processing');
+    const admin = this.kafka.admin();
     try {
-      const admin = this.kafka.admin();
       await admin.connect();
       const existing = await admin.listTopics();
       if (!existing.includes(topic)) {
         await admin.createTopics({ topics: [{ topic, numPartitions: 1, replicationFactor: 1 }] });
       }
-      await admin.disconnect();
     } catch (err) {
       console.warn('[KafkaService] onModuleInit - topic creation skipped:', (err as Error).message);
+    } finally {
+      await admin.disconnect();
     }
   }
 
