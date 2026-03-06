@@ -32,6 +32,11 @@ export class StorageService {
       this.config.get<string>('UPLOAD_DIR') || path.join(process.cwd(), 'uploads');
   }
 
+  /** Resolves storagePath (e.g. userId/filename.pdf) to full filesystem path. */
+  getFullPath(storagePath: string): string {
+    return path.join(this.uploadDir, storagePath);
+  }
+
   /**
    * Saves a file to local disk.
    * Structure: uploads/{userId}/{uuid}-{originalName}
