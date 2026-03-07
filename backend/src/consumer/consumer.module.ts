@@ -9,6 +9,8 @@ import { DbModule } from '../db/db.module';
 import { DocumentsModule } from '../modules/documents/documents.module';
 import { StorageModule } from '../modules/storage/storage.module';
 import { KafkaModule } from '../modules/kafka/kafka.module';
+import { EmbeddingsModule } from '../modules/embeddings/embeddings.module';
+import { VectordbModule } from '../modules/vectordb/vectordb.module';
 import { DocumentConsumerService } from './document-consumer/document-consumer.service';
 
 @Module({
@@ -18,6 +20,8 @@ import { DocumentConsumerService } from './document-consumer/document-consumer.s
     KafkaModule,
     DocumentsModule,
     StorageModule,
+    EmbeddingsModule,
+    VectordbModule,
   ],
   providers: [DocumentConsumerService],
 })

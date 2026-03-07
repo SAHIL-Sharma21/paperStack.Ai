@@ -53,7 +53,7 @@ export class DocumentsService {
     return this.documentModel.findByIdAndUpdate(
       documentId,
       { status },
-      { new: true },
+      { returnDocument: 'after' },
     );
   }
 }

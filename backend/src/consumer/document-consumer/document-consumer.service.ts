@@ -12,6 +12,8 @@ import { StorageService } from '../../modules/storage/storage.service';
 import { COMPLETED_STATUS, FAILED_STATUS } from '../../modules/documents/constant';
 import * as fs from 'fs';
 import { extractText } from '../../utils/text-extractor';
+import { EmbeddingsService } from '../../modules/embeddings/embeddings.service';
+import { VectordbService } from '../../modules/vectordb/vectordb.service';
 
 @Injectable()
 export class DocumentConsumerService implements OnModuleInit, OnModuleDestroy {
@@ -21,6 +23,8 @@ export class DocumentConsumerService implements OnModuleInit, OnModuleDestroy {
     private config: ConfigService,
     private documentsService: DocumentsService,
     private storageService: StorageService,
+    private embeddingsService: EmbeddingsService,
+    private vectordbService: VectordbService,
   ) {
     const raw = this.config.get<string>('KAFKA_BROKERS', 'localhost:9092');
     const brokers = parseBrokers(raw);
@@ -59,6 +63,14 @@ export class DocumentConsumerService implements OnModuleInit, OnModuleDestroy {
     await this.consumer?.disconnect();
   }
 
+  /** 
+   * this is the main function that processes the documents
+   * it extracts the text from the document, chunks it and embeds it
+   * and then upserts it into the vector database
+   * @param documentId: string
+   * @returns void
+   * @throws Error if the document is not found.
+   * */ 
   private async processDocument(documentId: string): Promise<void> {
     console.log('[DocumentConsumer] Processing document', documentId);
     const doc = await this.documentsService.findById(documentId);
@@ -82,7 +94,15 @@ export class DocumentConsumerService implements OnModuleInit, OnModuleDestroy {
       const parsedText = await extractText(fullPath, doc.mimeType);
       console.log('[DocumentConsumer] Extracted text length:', parsedText?.length ?? 0);
 
-      // TODO: Generate embeddings and store in Qdrant
+      const chunks = await this.embeddingsService.chunkAndEmbed(parsedText);
+      console.log('[DocumentConsumer] Chunked and embedded:', chunks.length, 'chunks');
+
+      await this.vectordbService.upsert(
+        documentId,
+        doc.userId.toString(),
+        chunks,
+        { originalName: doc.originalName },
+      );
 
       await this.documentsService.updateStatus(documentId, COMPLETED_STATUS);
       console.log('[DocumentConsumer] Document processed:', documentId);
