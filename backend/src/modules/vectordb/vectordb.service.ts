@@ -8,9 +8,12 @@ import { Injectable, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { randomUUID } from 'crypto';
 import { QdrantClient } from '@qdrant/js-client-rest';
-import { EmbeddingProvider, FASTEMBED_EMBEDDING_DIM, GEMINI_EMBEDDING_DIM } from '../embeddings/constant';
+import {
+  EmbeddingProvider,
+  FASTEMBED_EMBEDDING_DIM,
+  GEMINI_EMBEDDING_DIM,
+} from '../embeddings/constant';
 import { COLLECTION_NAME } from './constant';
-
 
 @Injectable()
 export class VectordbService implements OnModuleInit {
@@ -25,7 +28,9 @@ export class VectordbService implements OnModuleInit {
       apiKey: apiKey || undefined,
     });
     const provider = this.config.get<string>('EMBEDDING_PROVIDER', 'fastembed');
-    this.embeddingDimension = this.getEmbeddingDimension(provider as EmbeddingProvider);
+    this.embeddingDimension = this.getEmbeddingDimension(
+      provider as EmbeddingProvider,
+    );
   }
 
   async onModuleInit() {
@@ -34,13 +39,19 @@ export class VectordbService implements OnModuleInit {
 
   /** Create collection if it doesn't exist; optionally recreate to fix schema mismatch */
   private async ensureCollection() {
-    const recreate = this.config.get<string>('QDRANT_RECREATE_COLLECTION') === 'true';
+    const recreate =
+      this.config.get<string>('QDRANT_RECREATE_COLLECTION') === 'true';
     const collections = await this.client.getCollections();
-    const exists = collections.collections.some((c) => c.name === COLLECTION_NAME);
+    const exists = collections.collections.some(
+      (c) => c.name === COLLECTION_NAME,
+    );
 
     if (recreate && exists) {
       await this.client.deleteCollection(COLLECTION_NAME);
-      console.log('[VectordbService] Deleted collection (recreate requested):', COLLECTION_NAME);
+      console.log(
+        '[VectordbService] Deleted collection (recreate requested):',
+        COLLECTION_NAME,
+      );
     }
 
     if (!exists || recreate) {
@@ -63,11 +74,18 @@ export class VectordbService implements OnModuleInit {
     chunks: Array<{ text: string; embedding: number[] }>,
     metadata?: { originalName?: string },
   ) {
+    //Delete existing chunks for this document to ensure idempotency
+    await this.client.delete(COLLECTION_NAME, {
+      filter: {
+        must: [{ key: 'documentId', match: { value: documentId } }],
+      },
+    });
+
     for (let i = 0; i < chunks.length; i += this.BATCH_SIZE) {
       const batch = chunks.slice(i, i + this.BATCH_SIZE);
       const points = batch.map((chunk, idx) => ({
         id: randomUUID(),
-        vector: Array.from(chunk.embedding) as number[],
+        vector: Array.from(chunk.embedding),
         payload: {
           documentId,
           userId,
@@ -109,8 +127,9 @@ export class VectordbService implements OnModuleInit {
     return result;
   }
 
-  private getEmbeddingDimension(provider: string): number{
-    return provider === 'gemini' ? GEMINI_EMBEDDING_DIM : FASTEMBED_EMBEDDING_DIM;
+  private getEmbeddingDimension(provider: string): number {
+    return provider === 'gemini'
+      ? GEMINI_EMBEDDING_DIM
+      : FASTEMBED_EMBEDDING_DIM;
   }
-
 }

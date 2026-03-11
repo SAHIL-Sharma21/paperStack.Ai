@@ -10,7 +10,9 @@ async function bootstrap() {
   await NestFactory.createApplicationContext(ConsumerModule, {
     logger: ['error', 'warn', 'log'],
   });
-  console.log('[Consumer] Document processor is running. Press Ctrl+C to exit.');
+  console.log(
+    '[Consumer] Document processor is running. Press Ctrl+C to exit.',
+  );
 }
 
 bootstrap().catch((err) => {

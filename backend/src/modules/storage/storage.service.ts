@@ -29,12 +29,23 @@ export class StorageService {
   constructor(private config: ConfigService) {
     // Local upload directory - from env or default ./uploads
     this.uploadDir =
-      this.config.get<string>('UPLOAD_DIR') || path.join(process.cwd(), 'uploads');
+      this.config.get<string>('UPLOAD_DIR') ||
+      path.join(process.cwd(), 'uploads');
   }
 
   /** Resolves storagePath (e.g. userId/filename.pdf) to full filesystem path. */
   getFullPath(storagePath: string): string {
-    return path.join(this.uploadDir, storagePath);
+    const uploadRoot = path.resolve(this.uploadDir);
+    const fullPath = path.join(uploadRoot, storagePath);
+
+    if (
+      fullPath !== uploadRoot &&
+      !fullPath.startsWith(`${uploadRoot}${path.sep}`)
+    ) {
+      throw new Error(`Invalid storage path: ${storagePath}`);
+    }
+
+    return fullPath;
   }
 
   /**

@@ -86,9 +86,14 @@ export class UsersController {
     dto.id = doc._id.toString();
     dto.email = doc.email;
     dto.username = doc.username;
-    const docWithTimestamps = doc as UserDocument & { createdAt?: Date; updatedAt?: Date };
-    if (docWithTimestamps.createdAt) dto.createdAt = docWithTimestamps.createdAt;
-    if (docWithTimestamps.updatedAt) dto.updatedAt = docWithTimestamps.updatedAt;
+    const docWithTimestamps = doc as UserDocument & {
+      createdAt?: Date;
+      updatedAt?: Date;
+    };
+    if (docWithTimestamps.createdAt)
+      dto.createdAt = docWithTimestamps.createdAt;
+    if (docWithTimestamps.updatedAt)
+      dto.updatedAt = docWithTimestamps.updatedAt;
     return dto;
   }
 }

@@ -9,7 +9,10 @@ import { Kafka } from 'kafkajs';
 import { parseBrokers } from '../../modules/kafka/helper';
 import { DocumentsService } from '../../modules/documents/documents.service';
 import { StorageService } from '../../modules/storage/storage.service';
-import { COMPLETED_STATUS, FAILED_STATUS } from '../../modules/documents/constant';
+import {
+  COMPLETED_STATUS,
+  FAILED_STATUS,
+} from '../../modules/documents/constant';
 import * as fs from 'fs';
 import { extractText } from '../../utils/text-extractor';
 import { EmbeddingsService } from '../../modules/embeddings/embeddings.service';
@@ -28,15 +31,22 @@ export class DocumentConsumerService implements OnModuleInit, OnModuleDestroy {
   ) {
     const raw = this.config.get<string>('KAFKA_BROKERS', 'localhost:9092');
     const brokers = parseBrokers(raw);
-    const clientId = this.config.get<string>('KAFKA_CLIENT_ID', 'paperstack-backend');
+    const clientId = this.config.get<string>(
+      'KAFKA_CLIENT_ID',
+      'paperstack-backend',
+    );
     const kafka = new Kafka({ clientId: `${clientId}-consumer`, brokers });
-    this.consumer = kafka.consumer({ groupId: 'paperstack-document-processor' });
+    this.consumer = kafka.consumer({
+      groupId: 'paperstack-document-processor',
+    });
   }
 
   async onModuleInit() {
     const topic = this.config.get<string>('KAFKA_TOPIC', 'document-processing');
+    const fromBeginning =
+      this.config.get<string>('KAFKA_FROM_BEGINNING', 'false') === 'true';
     await this.consumer.connect();
-    await this.consumer.subscribe({topic, fromBeginning: true});
+    await this.consumer.subscribe({ topic, fromBeginning: fromBeginning });
     console.log('[DocumentConsumer] Subscribed to', topic);
 
     await this.consumer.run({
@@ -48,7 +58,9 @@ export class DocumentConsumerService implements OnModuleInit, OnModuleDestroy {
           const payload = value ? JSON.parse(value) : {};
           const documentId = payload.documentId ?? key;
           if (!documentId) {
-            console.warn('[DocumentConsumer] No documentId in message, skipping');
+            console.warn(
+              '[DocumentConsumer] No documentId in message, skipping',
+            );
             return;
           }
           await this.processDocument(documentId);
@@ -63,14 +75,14 @@ export class DocumentConsumerService implements OnModuleInit, OnModuleDestroy {
     await this.consumer?.disconnect();
   }
 
-  /** 
+  /**
    * this is the main function that processes the documents
    * it extracts the text from the document, chunks it and embeds it
    * and then upserts it into the vector database
    * @param documentId: string
    * @returns void
    * @throws Error if the document is not found.
-   * */ 
+   * */
   private async processDocument(documentId: string): Promise<void> {
     console.log('[DocumentConsumer] Processing document', documentId);
     const doc = await this.documentsService.findById(documentId);
@@ -79,7 +91,10 @@ export class DocumentConsumerService implements OnModuleInit, OnModuleDestroy {
       return;
     }
     if (doc.status === COMPLETED_STATUS) {
-      console.log('[DocumentConsumer] Already completed, skipping:', documentId);
+      console.log(
+        '[DocumentConsumer] Already completed, skipping:',
+        documentId,
+      );
       return;
     }
 
@@ -92,10 +107,26 @@ export class DocumentConsumerService implements OnModuleInit, OnModuleDestroy {
 
     try {
       const parsedText = await extractText(fullPath, doc.mimeType);
-      console.log('[DocumentConsumer] Extracted text length:', parsedText?.length ?? 0);
+      console.log(
+        '[DocumentConsumer] Extracted text length:',
+        parsedText?.length ?? 0,
+      );
+
+      if (!parsedText || parsedText.trim().length === 0) {
+        console.warn(
+          '[DocumentConsumer] No text extracted from document:',
+          documentId,
+        );
+        await this.documentsService.updateStatus(documentId, FAILED_STATUS);
+        return;
+      }
 
       const chunks = await this.embeddingsService.chunkAndEmbed(parsedText);
-      console.log('[DocumentConsumer] Chunked and embedded:', chunks.length, 'chunks');
+      console.log(
+        '[DocumentConsumer] Chunked and embedded:',
+        chunks.length,
+        'chunks',
+      );
 
       await this.vectordbService.upsert(
         documentId,

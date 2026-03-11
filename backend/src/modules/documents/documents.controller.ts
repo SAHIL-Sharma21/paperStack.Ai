@@ -66,7 +66,10 @@ export class DocumentsController {
     try {
       await this.kafkaService.publishDocumentForProcessing(doc._id.toString());
     } catch (err) {
-      await this.documentsService.updateStatus(doc._id.toString(), FAILED_STATUS);
+      await this.documentsService.updateStatus(
+        doc._id.toString(),
+        FAILED_STATUS,
+      );
       this.storageService.delete(storagePath);
       throw err;
     }
@@ -84,7 +87,15 @@ export class DocumentsController {
     return documents.map((doc) => this.toResponseDto(doc));
   }
 
-  private toResponseDto(doc: { _id: { toString(): string }; originalName: string; mimeType: string; size: number; status: string; createdAt?: Date; updatedAt?: Date }): DocumentResponseDto {
+  private toResponseDto(doc: {
+    _id: { toString(): string };
+    originalName: string;
+    mimeType: string;
+    size: number;
+    status: string;
+    createdAt?: Date;
+    updatedAt?: Date;
+  }): DocumentResponseDto {
     const dto = new DocumentResponseDto();
     dto.id = doc._id.toString();
     dto.originalName = doc.originalName;

@@ -6,10 +6,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import {
-  DocumentFile,
-  DocumentDocument,
-} from './schemas/document.schema';
+import { DocumentFile, DocumentDocument } from './schemas/document.schema';
 import { DocumentStatus, PROCESSING_STATUS } from './constant';
 
 export interface CreateDocumentDto {
@@ -23,7 +20,8 @@ export interface CreateDocumentDto {
 @Injectable()
 export class DocumentsService {
   constructor(
-    @InjectModel(DocumentFile.name) private documentModel: Model<DocumentDocument>,
+    @InjectModel(DocumentFile.name)
+    private documentModel: Model<DocumentDocument>,
   ) {}
 
   async create(createDto: CreateDocumentDto): Promise<DocumentDocument> {

@@ -15,7 +15,7 @@ export const CurrentUser = createParamDecorator(
     const user = request.user as UserDocument;
 
     if (data !== undefined) {
-      return user[data] as UserDocument[K];
+      return user[data];
     }
 
     return user;

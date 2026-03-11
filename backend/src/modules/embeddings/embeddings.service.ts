@@ -43,7 +43,9 @@ export class EmbeddingsService implements OnModuleInit {
   }
 
   getDimension(): number {
-    return this.provider === 'gemini' ? GEMINI_EMBEDDING_DIM : FASTEMBED_EMBEDDING_DIM;
+    return this.provider === 'gemini'
+      ? GEMINI_EMBEDDING_DIM
+      : FASTEMBED_EMBEDDING_DIM;
   }
 
   async embed(text: string): Promise<number[]> {
@@ -106,13 +108,19 @@ export class EmbeddingsService implements OnModuleInit {
     let start = 0;
     while (start < text.length) {
       let end = Math.min(start + MAX_CHUNK_CHARS, text.length);
+      if (end <= start) {
+        end = start + 1;
+      }
       if (end < text.length) {
         const lastSpace = text.lastIndexOf(' ', end);
         if (lastSpace > start) end = lastSpace;
       }
-      chunks.push(text.slice(start, end).trim());
+      if (end <= start) end = start + 1;
+
+      const piece = text.slice(start, end).trim();
+      if (piece) chunks.push(piece);
       start = end;
     }
-    return chunks.filter(Boolean);
+    return chunks;
   }
 }
