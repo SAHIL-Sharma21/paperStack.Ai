@@ -3,11 +3,7 @@
  * @author: Sahil Sharma
  */
 
-import {
-  PipeTransform,
-  Injectable,
-  BadRequestException,
-} from '@nestjs/common';
+import { PipeTransform, Injectable, BadRequestException } from '@nestjs/common';
 import { Types } from 'mongoose';
 
 @Injectable()

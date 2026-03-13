@@ -6,11 +6,8 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import {
-  DocumentFile,
-  DocumentDocument,
-} from './schemas/document.schema';
-import { DocumentStatus, PROCESSING_STATUS } from './constant';
+import { DocumentFile, DocumentDocument } from './schemas/document.schema';
+import { DocumentStatus, FAILED_STATUS, PROCESSING_STATUS } from './constant';
 
 export interface CreateDocumentDto {
   userId: string;
@@ -23,7 +20,8 @@ export interface CreateDocumentDto {
 @Injectable()
 export class DocumentsService {
   constructor(
-    @InjectModel(DocumentFile.name) private documentModel: Model<DocumentDocument>,
+    @InjectModel(DocumentFile.name)
+    private documentModel: Model<DocumentDocument>,
   ) {}
 
   async create(createDto: CreateDocumentDto): Promise<DocumentDocument> {
@@ -53,7 +51,32 @@ export class DocumentsService {
     return this.documentModel.findByIdAndUpdate(
       documentId,
       { status },
-      { new: true },
+      { returnDocument: 'after' },
+    );
+  }
+
+  /**
+   * Atomically claim a document for processing. Only one worker can succeed.
+   * Fails if already COMPLETED, or if another worker has a valid lease.
+   * Lease expires after 15 min to recover from crashed workers.
+   */
+  async claimDocument(
+    documentId: string,
+    leaseExpiryMs = 15 * 60 * 1000,
+  ): Promise<DocumentDocument | null> {
+    const leaseCutoff = new Date(Date.now() - leaseExpiryMs);
+    return this.documentModel.findOneAndUpdate(
+      {
+        _id: new Types.ObjectId(documentId),
+        status: { $in: [PROCESSING_STATUS, FAILED_STATUS] },
+        $or: [
+          { leasedAt: { $exists: false } },
+          { leasedAt: null },
+          { leasedAt: { $lt: leaseCutoff } },
+        ],
+      },
+      { $set: { leasedAt: new Date() } },
+      { returnDocument: 'after' },
     );
   }
 }

@@ -54,9 +54,10 @@ export class AuthController {
     const configuredExpirySeconds = Number(
       this.configService.get<string>('JWT_EXPIRATION_TIME'),
     );
-    const cookieMaxAgeMs = Number.isFinite(configuredExpirySeconds) && configuredExpirySeconds > 0
-      ? configuredExpirySeconds * 1000
-      : DEFAULT_COOKIE_MAX_AGE_MS;
+    const cookieMaxAgeMs =
+      Number.isFinite(configuredExpirySeconds) && configuredExpirySeconds > 0
+        ? configuredExpirySeconds * 1000
+        : DEFAULT_COOKIE_MAX_AGE_MS;
 
     const isProduction =
       this.configService.get<string>('NODE_ENV') === 'production';

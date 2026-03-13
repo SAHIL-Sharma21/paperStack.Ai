@@ -21,7 +21,6 @@ export class UsersService {
 
   async createUser(createUserDto: CreateUserDto): Promise<UserDocument> {
     try {
-        
       const newUser = new this.userModel(createUserDto);
       return await newUser.save();
     } catch (error) {

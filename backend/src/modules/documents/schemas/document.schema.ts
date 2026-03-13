@@ -5,7 +5,12 @@
 
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
-import { COMPLETED_STATUS, FAILED_STATUS, PROCESSING_STATUS, type DocumentStatus } from '../constant';
+import {
+  COMPLETED_STATUS,
+  FAILED_STATUS,
+  PROCESSING_STATUS,
+  type DocumentStatus,
+} from '../constant';
 
 export type DocumentDocument = HydratedDocument<DocumentFile>;
 
@@ -29,8 +34,16 @@ export class DocumentFile {
   @Prop({ required: true })
   storagePath: string;
 
-  @Prop({ required: true, default: PROCESSING_STATUS, enum: [PROCESSING_STATUS, COMPLETED_STATUS, FAILED_STATUS] })
+  @Prop({
+    required: true,
+    default: PROCESSING_STATUS,
+    enum: [PROCESSING_STATUS, COMPLETED_STATUS, FAILED_STATUS],
+  })
   status: DocumentStatus;
+
+  /** Set when a worker atomically claims the doc; prevents duplicate processing */
+  @Prop({ required: false })
+  leasedAt?: Date;
 }
 
 export const DocumentSchema = SchemaFactory.createForClass(DocumentFile);

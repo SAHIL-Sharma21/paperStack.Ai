@@ -17,7 +17,6 @@ import { Kafka } from 'kafkajs';
 import { MAX_RETRIES, RETRY_DELAY_MS } from './constant';
 import { parseBrokers } from './helper';
 
-
 @Injectable()
 export class KafkaService implements OnModuleInit, OnModuleDestroy {
   private kafka: Kafka;
@@ -26,7 +25,10 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
   constructor(private config: ConfigService) {
     const raw = this.config.get<string>('KAFKA_BROKERS', 'localhost:9092');
     const brokers = parseBrokers(raw);
-    const clientId = this.config.get<string>('KAFKA_CLIENT_ID', 'paperstack-backend');
+    const clientId = this.config.get<string>(
+      'KAFKA_CLIENT_ID',
+      'paperstack-backend',
+    );
 
     this.kafka = new Kafka({
       clientId,
@@ -45,10 +47,15 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
       await admin.connect();
       const existing = await admin.listTopics();
       if (!existing.includes(topic)) {
-        await admin.createTopics({ topics: [{ topic, numPartitions: 1, replicationFactor: 1 }] });
+        await admin.createTopics({
+          topics: [{ topic, numPartitions: 1, replicationFactor: 1 }],
+        });
       }
     } catch (err) {
-      console.warn('[KafkaService] onModuleInit - topic creation skipped:', (err as Error).message);
+      console.warn(
+        '[KafkaService] onModuleInit - topic creation skipped:',
+        (err as Error).message,
+      );
     } finally {
       await admin.disconnect();
     }
@@ -75,9 +82,16 @@ export class KafkaService implements OnModuleInit, OnModuleDestroy {
         return;
       } catch (err) {
         const msg = (err as Error).message;
-        console.warn('[KafkaService] publishDocumentForProcessing() - attempt', attempt, 'failed:', msg);
+        console.warn(
+          '[KafkaService] publishDocumentForProcessing() - attempt',
+          attempt,
+          'failed:',
+          msg,
+        );
         if (attempt === MAX_RETRIES) {
-          console.error('[KafkaService] publishDocumentForProcessing() - all retries exhausted, rethrowing');
+          console.error(
+            '[KafkaService] publishDocumentForProcessing() - all retries exhausted, rethrowing',
+          );
           throw err;
         }
         await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));

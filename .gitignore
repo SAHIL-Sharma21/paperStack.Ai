@@ -83,3 +83,8 @@ junit.xml
 # -----------------------------
 docker-data/
 volumes/
+
+# -----------------------------
+# ML model cache (FastEmbed downloads ~128MB on first run)
+# -----------------------------
+**/local_cache/
