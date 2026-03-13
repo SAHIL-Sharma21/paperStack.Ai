@@ -38,6 +38,7 @@ export class DocumentConsumerService implements OnModuleInit, OnModuleDestroy {
     const kafka = new Kafka({ clientId: `${clientId}-consumer`, brokers });
     this.consumer = kafka.consumer({
       groupId: 'paperstack-document-processor',
+      sessionTimeout: 60_000, // 60s; heartbeat during processing keeps session alive
     });
   }
 
@@ -49,23 +50,63 @@ export class DocumentConsumerService implements OnModuleInit, OnModuleDestroy {
     await this.consumer.subscribe({ topic, fromBeginning: fromBeginning });
     console.log('[DocumentConsumer] Subscribed to', topic);
 
+    const heartbeatIntervalMs = 5000;
+
     await this.consumer.run({
-      eachMessage: async ({ topic, partition, message }) => {
-        const key = message.key?.toString();
-        const value = message.value?.toString();
-        console.log('[DocumentConsumer] Received', { topic, partition, key });
-        try {
-          const payload = value ? JSON.parse(value) : {};
-          const documentId = payload.documentId ?? key;
+      eachBatchAutoResolve: false,
+      eachBatch: async ({
+        batch,
+        resolveOffset,
+        heartbeat,
+        isRunning,
+        isStale,
+      }) => {
+        for (const message of batch.messages) {
+          if (!isRunning() || isStale()) break;
+
+          const key = message.key?.toString();
+          const value = message.value?.toString();
+          console.log('[DocumentConsumer] Received', {
+            topic: batch.topic,
+            partition: batch.partition,
+            key,
+          });
+
+          let documentId: string | undefined;
+          try {
+            const payload = value ? JSON.parse(value) : {};
+            documentId = payload.documentId ?? key;
+          } catch (err) {
+            console.error('[DocumentConsumer] Invalid message JSON:', err);
+            resolveOffset(message.offset);
+            continue;
+          }
+
           if (!documentId) {
             console.warn(
               '[DocumentConsumer] No documentId in message, skipping',
             );
-            return;
+            resolveOffset(message.offset);
+            continue;
           }
-          await this.processDocument(documentId);
-        } catch (err) {
-          console.error('[DocumentConsumer] Error processing message:', err);
+
+          const heartbeatTimer = setInterval(() => {
+            void heartbeat().catch(() => {});
+          }, heartbeatIntervalMs);
+
+          try {
+            await this.processDocument(documentId);
+            resolveOffset(message.offset);
+          } catch (err) {
+            console.error(
+              '[DocumentConsumer] Error processing message:',
+              documentId,
+              err,
+            );
+          } finally {
+            clearInterval(heartbeatTimer);
+            await heartbeat();
+          }
         }
       },
     });
@@ -85,6 +126,7 @@ export class DocumentConsumerService implements OnModuleInit, OnModuleDestroy {
    * */
   private async processDocument(documentId: string): Promise<void> {
     console.log('[DocumentConsumer] Processing document', documentId);
+
     const doc = await this.documentsService.findById(documentId);
     if (!doc) {
       console.warn('[DocumentConsumer] Document not found:', documentId);
@@ -98,7 +140,17 @@ export class DocumentConsumerService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
-    const fullPath = this.storageService.getFullPath(doc.storagePath);
+    const claimed = await this.documentsService.claimDocument(documentId);
+    if (!claimed) {
+      console.log(
+        '[DocumentConsumer] Could not claim document (another worker may have it):',
+        documentId,
+      );
+      return;
+    }
+    const docToProcess = claimed;
+
+    const fullPath = this.storageService.getFullPath(docToProcess.storagePath);
     if (!fs.existsSync(fullPath)) {
       console.error('[DocumentConsumer] File not found:', fullPath);
       await this.documentsService.updateStatus(documentId, FAILED_STATUS);
@@ -106,7 +158,7 @@ export class DocumentConsumerService implements OnModuleInit, OnModuleDestroy {
     }
 
     try {
-      const parsedText = await extractText(fullPath, doc.mimeType);
+      const parsedText = await extractText(fullPath, docToProcess.mimeType);
       console.log(
         '[DocumentConsumer] Extracted text length:',
         parsedText?.length ?? 0,
@@ -130,9 +182,9 @@ export class DocumentConsumerService implements OnModuleInit, OnModuleDestroy {
 
       await this.vectordbService.upsert(
         documentId,
-        doc.userId.toString(),
+        docToProcess.userId.toString(),
         chunks,
-        { originalName: doc.originalName },
+        { originalName: docToProcess.originalName },
       );
 
       await this.documentsService.updateStatus(documentId, COMPLETED_STATUS);

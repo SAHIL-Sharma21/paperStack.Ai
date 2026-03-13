@@ -40,6 +40,10 @@ export class DocumentFile {
     enum: [PROCESSING_STATUS, COMPLETED_STATUS, FAILED_STATUS],
   })
   status: DocumentStatus;
+
+  /** Set when a worker atomically claims the doc; prevents duplicate processing */
+  @Prop({ required: false })
+  leasedAt?: Date;
 }
 
 export const DocumentSchema = SchemaFactory.createForClass(DocumentFile);
