@@ -9,6 +9,8 @@ import { DocumentsController } from './documents.controller';
 import { DocumentsService } from './documents.service';
 import { DocumentFile, DocumentSchema } from './schemas/document.schema';
 import { StorageModule } from '../storage/storage.module';
+import { EmbeddingsModule } from '../embeddings/embeddings.module';
+import { VectordbModule } from '../vectordb/vectordb.module';
 
 @Module({
   imports: [
@@ -16,6 +18,8 @@ import { StorageModule } from '../storage/storage.module';
       { name: DocumentFile.name, schema: DocumentSchema },
     ]),
     StorageModule,
+    EmbeddingsModule,
+    VectordbModule,
   ],
   controllers: [DocumentsController],
   providers: [DocumentsService],

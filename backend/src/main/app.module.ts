@@ -7,6 +7,8 @@ import { UserModule } from 'src/modules/users/user.module';
 import { AuthModule } from 'src/modules/auth/auth.module';
 import { DocumentsModule } from 'src/modules/documents/documents.module';
 import { KafkaModule } from 'src/modules/kafka/kafka.module';
+import { EmbeddingsModule } from 'src/modules/embeddings/embeddings.module';
+import { VectordbModule } from 'src/modules/vectordb/vectordb.module';
 
 @Module({
   imports: [
@@ -16,6 +18,8 @@ import { KafkaModule } from 'src/modules/kafka/kafka.module';
     AuthModule,
     KafkaModule,
     DocumentsModule,
+    EmbeddingsModule,
+    VectordbModule,
   ],
   controllers: [AppController],
   providers: [AppService],

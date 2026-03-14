@@ -72,7 +72,7 @@ export class EmbeddingsService implements OnModuleInit {
     const result = await gen.next();
     const vec = result.value?.[0];
     if (!vec) throw new Error('No embedding from FastEmbed');
-    return vec;
+    return Array.from(vec as number[] | Float32Array);
   }
 
   async chunkAndEmbed(
