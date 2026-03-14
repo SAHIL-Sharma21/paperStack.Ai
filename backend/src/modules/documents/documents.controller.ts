@@ -11,6 +11,7 @@ import {
   UseInterceptors,
   UploadedFile,
   BadRequestException,
+  Query,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { DocumentsService } from './documents.service';
@@ -22,6 +23,13 @@ import { StorageService } from '../storage/storage.service';
 import { KafkaService } from '../kafka/kafka.service';
 import { multerDocumentConfig } from './config/multer.config';
 import { FAILED_STATUS } from './constant';
+import { EmbeddingsService } from '../embeddings/embeddings.service';
+import { VectordbService } from '../vectordb/vectordb.service';
+import {
+  SearchDocumentResultDto,
+  SearchDocumentsRequestDto,
+  SearchDocumentsResponseDto,
+} from './dto/search-documents.dto';
 
 @Controller('documents')
 @UseGuards(JwtAuthGuard)
@@ -30,6 +38,8 @@ export class DocumentsController {
     private readonly documentsService: DocumentsService,
     private readonly storageService: StorageService,
     private readonly kafkaService: KafkaService,
+    private readonly embeddingsService: EmbeddingsService,
+    private readonly vectordbService: VectordbService,
   ) {}
 
   /**
@@ -104,6 +114,38 @@ export class DocumentsController {
     dto.status = doc.status;
     if (doc.createdAt) dto.createdAt = doc.createdAt;
     if (doc.updatedAt) dto.updatedAt = doc.updatedAt;
+    return dto;
+  }
+
+  @Get('search')
+  async searchDocuments(
+    @Query() dto: SearchDocumentsRequestDto,
+    @CurrentUser() user: UserDocument & { _id: { toString(): string } },
+  ): Promise<SearchDocumentsResponseDto> {
+    const userId = user._id.toString();
+    const topK = dto.limit ?? 10;
+
+    const queryEmbedding = await this.embeddingsService.embed(dto.query);
+    const results = await this.vectordbService.search(queryEmbedding, topK, {
+      userId,
+    });
+
+    const response = new SearchDocumentsResponseDto();
+    response.results = results.map((r) => this.toSearchResultDto(r));
+    return response;
+  }
+
+  private toSearchResultDto(r: {
+    payload?: Record<string, unknown> | null;
+    score?: number;
+  }): SearchDocumentResultDto {
+    const p = r.payload ?? {};
+    const dto = new SearchDocumentResultDto();
+    dto.documentId = String(p.documentId ?? '');
+    dto.originalName = String(p.originalName ?? '');
+    dto.text = String(p.text ?? '');
+    dto.score = r.score ?? 0;
+    dto.chunkIndex = Number(p.chunkIndex ?? 0);
     return dto;
   }
 }

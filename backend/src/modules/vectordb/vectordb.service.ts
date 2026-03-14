@@ -57,6 +57,7 @@ export class VectordbService implements OnModuleInit {
         );
         await this.client.deleteCollection(COLLECTION_NAME);
         await this.createCollection();
+        await this.ensurePayloadIndexes();
         return;
       }
     }
@@ -72,6 +73,8 @@ export class VectordbService implements OnModuleInit {
     if (!exists || recreate) {
       await this.createCollection();
     }
+
+    await this.ensurePayloadIndexes();
   }
 
   private async createCollection() {
@@ -82,6 +85,29 @@ export class VectordbService implements OnModuleInit {
       },
     });
     console.log('[VectordbService] Created collection:', COLLECTION_NAME);
+  }
+
+  /** Create payload indexes for filterable fields (userId, documentId) in parallel */
+  private async ensurePayloadIndexes(): Promise<void> {
+    await Promise.all([
+      this.createPayloadIndexIfMissing('userId'),
+      this.createPayloadIndexIfMissing('documentId'),
+    ]);
+  }
+
+  private async createPayloadIndexIfMissing(fieldName: string): Promise<void> {
+    try {
+      await this.client.createPayloadIndex(COLLECTION_NAME, {
+        field_name: fieldName,
+        field_schema: 'keyword',
+      });
+      console.log('[VectordbService] Created payload index:', fieldName);
+    } catch (err: unknown) {
+      const msg = String(err instanceof Error ? err.message : err);
+      if (!msg.includes('already exists') && !msg.includes('AlreadyExists')) {
+        throw err;
+      }
+    }
   }
 
   /** Extract vector size from Qdrant config (single or named vectors) */
@@ -151,8 +177,11 @@ export class VectordbService implements OnModuleInit {
     topK = 5,
     filter?: { userId?: string; documentId?: string },
   ) {
+    const vector = Array.from(embedding) as number[];
+    // Collection uses anonymous vectors (vectors: { size, distance }), not named
+
     const result = await this.client.search(COLLECTION_NAME, {
-      vector: embedding,
+      vector,
       limit: topK,
       filter: filter
         ? {
