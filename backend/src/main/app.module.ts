@@ -9,6 +9,7 @@ import { DocumentsModule } from 'src/modules/documents/documents.module';
 import { KafkaModule } from 'src/modules/kafka/kafka.module';
 import { EmbeddingsModule } from 'src/modules/embeddings/embeddings.module';
 import { VectordbModule } from 'src/modules/vectordb/vectordb.module';
+import { ChatModule } from 'src/modules/chat/chat.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { VectordbModule } from 'src/modules/vectordb/vectordb.module';
     DocumentsModule,
     EmbeddingsModule,
     VectordbModule,
+    ChatModule,
   ],
   controllers: [AppController],
   providers: [AppService],
