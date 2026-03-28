@@ -171,6 +171,16 @@ export class VectordbService implements OnModuleInit {
     }
   }
 
+  /** Remove all vector points for a document (e.g. on delete) */
+  async deleteDocumentVectors(documentId: string): Promise<void> {
+    await this.client.delete(COLLECTION_NAME, {
+      wait: true,
+      filter: {
+        must: [{ key: 'documentId', match: { value: documentId } }],
+      },
+    });
+  }
+
   /** Search similar chunks (for RAG later) */
   async search(
     embedding: number[],

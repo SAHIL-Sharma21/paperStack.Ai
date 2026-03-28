@@ -3,7 +3,7 @@
  * @author: Sahil Sharma
  */
 
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { ChatController } from './chat.controller';
 import { ChatService } from './chat.service';
@@ -21,7 +21,7 @@ import { VectordbModule } from '../vectordb/vectordb.module';
     MongooseModule.forFeature([
       { name: Conversation.name, schema: ConversationSchema },
     ]),
-    DocumentsModule,
+    forwardRef(() => DocumentsModule),
     EmbeddingsModule,
     VectordbModule,
   ],

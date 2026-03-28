@@ -89,4 +89,13 @@ export class ChatService {
     });
   }
 
+  async deleteConversationsForDocument(
+    userId: string,
+    documentId: string,
+  ): Promise<void> {
+    await this.conversationModel.deleteMany({
+      userId: new Types.ObjectId(userId),
+      documentId: new Types.ObjectId(documentId),
+    });
+  }
 }
