@@ -5,13 +5,18 @@
 
 import {
   Controller,
+  Delete,
   Get,
+  NotFoundException,
+  Param,
   Post,
   UseGuards,
   UseInterceptors,
   UploadedFile,
   BadRequestException,
   Query,
+  forwardRef,
+  Inject,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { DocumentsService } from './documents.service';
@@ -30,6 +35,8 @@ import {
   SearchDocumentsRequestDto,
   SearchDocumentsResponseDto,
 } from './dto/search-documents.dto';
+import { ParseObjectIdPipe } from '../../common/pipes/parse-object-id.pipe';
+import { ChatService } from '../chat/chat.service';
 
 @Controller('documents')
 @UseGuards(JwtAuthGuard)
@@ -40,6 +47,8 @@ export class DocumentsController {
     private readonly kafkaService: KafkaService,
     private readonly embeddingsService: EmbeddingsService,
     private readonly vectordbService: VectordbService,
+    @Inject(forwardRef(() => ChatService))
+    private readonly chatService: ChatService,
   ) {}
 
   /**
@@ -85,6 +94,51 @@ export class DocumentsController {
     }
 
     return this.toResponseDto(doc);
+  }
+
+  /**
+   * Delete document: MongoDB row, file on disk, Qdrant vectors, and chat threads.
+   */
+  @Delete(':id')
+  async remove(
+    @Param('id', ParseObjectIdPipe) documentId: string,
+    @CurrentUser() user: UserDocument & { _id: { toString(): string } },
+  ): Promise<{ deleted: true }> {
+    const userId = user._id.toString();
+    const doc = await this.documentsService.findByIdAndUserId(
+      documentId,
+      userId,
+    );
+    if (!doc) {
+      throw new NotFoundException('Document not found');
+    }
+
+    try {
+      await this.chatService.deleteConversationsForDocument(userId, documentId);
+    } catch (err) {
+      console.error(
+        '[DocumentsController] Chat deleteConversationsForDocument failed:',
+        err,
+      );
+    }
+
+    try {
+      await this.vectordbService.deleteDocumentVectors(documentId);
+    } catch (err) {
+      console.error(
+        '[DocumentsController] Qdrant deleteDocumentVectors failed:',
+        err,
+      );
+    }
+
+    try {
+      this.storageService.delete(doc.storagePath);
+    } catch (err) {
+      console.error('[DocumentsController] Storage delete failed:', err);
+    }
+
+    await this.documentsService.deleteByIdAndUserId(documentId, userId);
+    return { deleted: true };
   }
 
   @Get()

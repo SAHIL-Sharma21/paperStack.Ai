@@ -3,7 +3,7 @@
  * @author: Sahil Sharma
  */
 
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { DocumentsController } from './documents.controller';
 import { DocumentsService } from './documents.service';
@@ -11,6 +11,7 @@ import { DocumentFile, DocumentSchema } from './schemas/document.schema';
 import { StorageModule } from '../storage/storage.module';
 import { EmbeddingsModule } from '../embeddings/embeddings.module';
 import { VectordbModule } from '../vectordb/vectordb.module';
+import { ChatModule } from '../chat/chat.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { VectordbModule } from '../vectordb/vectordb.module';
     StorageModule,
     EmbeddingsModule,
     VectordbModule,
+    forwardRef(() => ChatModule),
   ],
   controllers: [DocumentsController],
   providers: [DocumentsService],

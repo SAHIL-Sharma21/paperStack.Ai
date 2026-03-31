@@ -44,6 +44,26 @@ export class DocumentsService {
     return this.documentModel.findById(documentId);
   }
 
+  async findByIdAndUserId(
+    documentId: string,
+    userId: string,
+  ): Promise<DocumentDocument | null> {
+    return this.documentModel.findOne({
+      _id: new Types.ObjectId(documentId),
+      userId: new Types.ObjectId(userId),
+    });
+  }
+
+  async deleteByIdAndUserId(
+    documentId: string,
+    userId: string,
+  ): Promise<DocumentDocument | null> {
+    return this.documentModel.findOneAndDelete({
+      _id: new Types.ObjectId(documentId),
+      userId: new Types.ObjectId(userId),
+    });
+  }
+
   async updateStatus(
     documentId: string,
     status: DocumentStatus,
