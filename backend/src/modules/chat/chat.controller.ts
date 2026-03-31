@@ -27,6 +27,7 @@ import {
   ConversationListItemDto,
 } from './dto/chat-response.dto';
 import { COMPLETED_STATUS } from '../documents/constant';
+import { ParseObjectIdPipe } from '../../common/pipes/parse-object-id.pipe';
 
 @Controller('documents')
 @UseGuards(JwtAuthGuard)
@@ -44,7 +45,7 @@ export class ChatController {
    */
   @Post(':documentId/chat')
   async streamChat(
-    @Param('documentId') documentId: string,
+    @Param('documentId', ParseObjectIdPipe) documentId: string,
     @Body() dto: ChatRequestDto,
     @CurrentUser() user: UserDocument & { _id: { toString(): string } },
     @Res() res: Response,
@@ -77,6 +78,11 @@ export class ChatController {
     res.setHeader('X-Accel-Buffering', 'no');
     res.flushHeaders();
 
+    let clientDisconnected = false;
+    res.on('close', () => {
+      clientDisconnected = true;
+    })
+
     let fullResponse = '';
 
     try {
@@ -86,6 +92,7 @@ export class ChatController {
         dto.message,
         historyForRag.map((m) => ({ role: m.role, content: m.content })),
       )) {
+        if(clientDisconnected) break;
         fullResponse += chunk;
         res.write(`data: ${JSON.stringify({ text: chunk })}\n\n`);
       }
@@ -98,14 +105,31 @@ export class ChatController {
       return;
     }
 
-    await this.chatService.addMessages(
-      conversation._id.toString(),
-      dto.message,
-      fullResponse,
-    );
-
-    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
-    res.end();
+    try {
+      await this.chatService.addMessages(
+        conversation._id.toString(),
+        dto.message,
+        fullResponse,
+      );
+      if (!clientDisconnected && !res.writableEnded) {
+        res.write(`data: ${JSON.stringify({ done: true, saved: true })}\n\n`);
+      }
+    } catch (err) {
+      console.error('[ChatController] Failed to save conversation:', err);
+      if (!clientDisconnected && !res.writableEnded) {
+        res.write(
+          `data: ${JSON.stringify({
+            done: true,
+            saved: false,
+            error: 'Failed to persist conversation history',
+          })}\n\n`,
+        );
+      }
+    } finally {
+      if (!res.writableEnded) {
+        res.end();
+      }
+    }
   }
 
   /**
@@ -114,7 +138,7 @@ export class ChatController {
    */
   @Get(':documentId/conversations')
   async listConversations(
-    @Param('documentId') documentId: string,
+    @Param('documentId', ParseObjectIdPipe) documentId: string,
     @CurrentUser() user: UserDocument & { _id: { toString(): string } },
   ): Promise<ConversationListItemDto[]> {
     const userId = user._id.toString();
@@ -132,8 +156,8 @@ export class ChatController {
    */
   @Get(':documentId/conversations/:conversationId')
   async getConversation(
-    @Param('documentId') documentId: string,
-    @Param('conversationId') conversationId: string,
+    @Param('documentId', ParseObjectIdPipe) documentId: string,
+    @Param('conversationId', ParseObjectIdPipe) conversationId: string,
     @CurrentUser() user: UserDocument & { _id: { toString(): string } },
   ): Promise<ConversationDto> {
     const userId = user._id.toString();

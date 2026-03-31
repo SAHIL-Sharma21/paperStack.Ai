@@ -113,7 +113,14 @@ export class DocumentsController {
       throw new NotFoundException('Document not found');
     }
 
-    await this.chatService.deleteConversationsForDocument(userId, documentId);
+    try {
+      await this.chatService.deleteConversationsForDocument(userId, documentId);
+    } catch (err) {
+      console.error(
+        '[DocumentsController] Chat deleteConversationsForDocument failed:',
+        err,
+      );
+    }
 
     try {
       await this.vectordbService.deleteDocumentVectors(documentId);
