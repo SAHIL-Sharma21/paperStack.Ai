@@ -40,6 +40,60 @@ import {
 import { ParseObjectIdPipe } from '../../common/pipes/parse-object-id.pipe';
 import { ChatService } from '../chat/chat.service';
 
+/**
+ * Normalize stored original name for use in Content-Disposition: strip CR/LF and
+ * C0/DEL controls, trim, collapse whitespace, replace `;` (parameter delimiter).
+ */
+function normalizeOriginalFilenameForDisposition(raw: string): string {
+  if (raw == null || raw === '') {
+    return 'download';
+  }
+  let s = raw.replace(/[\x00-\x1F\x7F]/g, ' ');
+  s = s.trim();
+  s = s.replace(/\s+/g, ' ');
+  s = s.replace(/;/g, '_');
+  return s.length > 0 ? s : 'download';
+}
+
+/**
+ * Legacy filename="..." value: printable ASCII only after NFKD + combining strip,
+ * then replace non-ASCII and header-breaking characters with underscores.
+ */
+function buildLegacyAsciiFilename(normalized: string): string {
+  const base = normalized.normalize('NFKD').replace(/\p{M}/gu, '');
+  let out = '';
+  for (const ch of base) {
+    const code = ch.charCodeAt(0);
+    if (code >= 0x20 && code <= 0x7e) {
+      if (ch === '"' || ch === '\\' || ch === ';') {
+        out += '_';
+      } else if (ch === ' ') {
+        out += '_';
+      } else {
+        out += ch;
+      }
+    } else {
+      out += '_';
+    }
+  }
+  out = out.replace(/_+/g, '_').replace(/^_|_$/g, '');
+  return out.length > 0 ? out : 'download';
+}
+
+/** RFC 5987 percent-encoded UTF-8 (value after UTF-8'' prefix). */
+function encodeFilenameRFC5987(normalized: string): string {
+  return encodeURIComponent(normalized);
+}
+
+/** RFC 6266: both filename and filename* (RFC 5987) for Unicode-capable clients. */
+function buildContentDispositionHeader(originalName: string, inline: boolean): string {
+  const normalized = normalizeOriginalFilenameForDisposition(originalName);
+  const legacy = buildLegacyAsciiFilename(normalized);
+  const encoded = encodeFilenameRFC5987(normalized);
+  const kind = inline ? 'inline' : 'attachment';
+  return `${kind}; filename="${legacy}"; filename*=UTF-8''${encoded}`;
+}
+
 @Controller('documents')
 @UseGuards(JwtAuthGuard)
 export class DocumentsController {
@@ -123,11 +177,11 @@ export class DocumentsController {
     }
 
     const stream = fs.createReadStream(fullPath);
-    const safeName = doc.originalName.replace(/"/g, '\\"');
     const useInline = inline === '1' || inline === 'true';
-    const disposition = useInline
-      ? `inline; filename="${safeName}"`
-      : `attachment; filename="${safeName}"`;
+    const disposition = buildContentDispositionHeader(
+      doc.originalName,
+      useInline,
+    );
 
     return new StreamableFile(stream, {
       type: doc.mimeType || 'application/octet-stream',
