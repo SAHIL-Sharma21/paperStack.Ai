@@ -10,14 +10,16 @@ import {
   NotFoundException,
   Param,
   Post,
+  Query,
+  StreamableFile,
   UseGuards,
   UseInterceptors,
   UploadedFile,
   BadRequestException,
-  Query,
   forwardRef,
   Inject,
 } from '@nestjs/common';
+import * as fs from 'fs';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { DocumentsService } from './documents.service';
 import { DocumentResponseDto } from './dto/document-response.dto';
@@ -94,6 +96,43 @@ export class DocumentsController {
     }
 
     return this.toResponseDto(doc);
+  }
+
+  /**
+   * Stream the original file for download or inline preview (PDF in browser).
+   * Query inline=1 sets Content-Disposition: inline for embedding.
+   */
+  @Get(':id/file')
+  async getFile(
+    @Param('id', ParseObjectIdPipe) documentId: string,
+    @Query('inline') inline: string | undefined,
+    @CurrentUser() user: UserDocument & { _id: { toString(): string } },
+  ): Promise<StreamableFile> {
+    const userId = user._id.toString();
+    const doc = await this.documentsService.findByIdAndUserId(
+      documentId,
+      userId,
+    );
+    if (!doc) {
+      throw new NotFoundException('Document not found');
+    }
+
+    const fullPath = this.storageService.getFullPath(doc.storagePath);
+    if (!fs.existsSync(fullPath)) {
+      throw new NotFoundException('File not found on disk');
+    }
+
+    const stream = fs.createReadStream(fullPath);
+    const safeName = doc.originalName.replace(/"/g, '\\"');
+    const useInline = inline === '1' || inline === 'true';
+    const disposition = useInline
+      ? `inline; filename="${safeName}"`
+      : `attachment; filename="${safeName}"`;
+
+    return new StreamableFile(stream, {
+      type: doc.mimeType || 'application/octet-stream',
+      disposition,
+    });
   }
 
   /**
