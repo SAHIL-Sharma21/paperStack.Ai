@@ -9,7 +9,7 @@ export type StoredAuth = {
 };
 
 export function loadAuthState(): StoredAuth {
-  const token = localStorage.getItem(TOKEN_KEY);
+  let token = localStorage.getItem(TOKEN_KEY);
   const rawUser = localStorage.getItem(USER_KEY);
 
   let user: AuthUser | null = null;
@@ -17,7 +17,9 @@ export function loadAuthState(): StoredAuth {
     try {
       user = JSON.parse(rawUser) as AuthUser;
     } catch {
+      localStorage.removeItem(TOKEN_KEY);
       localStorage.removeItem(USER_KEY);
+      token = null;
     }
   }
 

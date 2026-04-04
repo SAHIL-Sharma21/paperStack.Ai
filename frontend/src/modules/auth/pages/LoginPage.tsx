@@ -51,16 +51,22 @@ export function LoginPage() {
       <CardContent>
         <form onSubmit={onSubmit} className="space-y-4">
           <div className="space-y-2">
-            <label className="text-sm text-zinc-300">Email or Username</label>
+            <label htmlFor="emailOrUsername" className="text-sm text-zinc-300">
+              Email or Username
+            </label>
             <Input
+              id="emailOrUsername"
               required
               value={emailOrUsername}
               onChange={(e) => setEmailOrUsername(e.target.value)}
             />
           </div>
           <div className="space-y-2">
-            <label className="text-sm text-zinc-300">Password</label>
+            <label htmlFor="password" className="text-sm text-zinc-300">
+              Password
+            </label>
             <Input
+              id="password"
               required
               type="password"
               value={password}

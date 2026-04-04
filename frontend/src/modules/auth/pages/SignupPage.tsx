@@ -34,7 +34,9 @@ export function SignupPage() {
       navigate('/documents', { replace: true });
     } catch (err) {
       setError('Signup failed. Please verify your inputs.');
-      console.error('[SignupPage] signup error:', err);
+      if(import.meta.env.DEV){
+        console.error('[SignupPage] signup error:', err);
+      }
     } finally {
       setLoading(false);
     }
@@ -49,16 +51,34 @@ export function SignupPage() {
       <CardContent>
         <form onSubmit={onSubmit} className="space-y-4">
           <div className="space-y-2">
-            <label className="text-sm text-zinc-300">Email</label>
-            <Input required type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm text-zinc-300">Username</label>
-            <Input required value={username} onChange={(e) => setUsername(e.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm text-zinc-300">Password</label>
+            <label htmlFor="email" className="text-sm text-zinc-300">
+              Email
+            </label>
             <Input
+              id="email"
+              required
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <label htmlFor="username" className="text-sm text-zinc-300">
+              Username
+            </label>
+            <Input
+              id="username"
+              required
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+            />
+          </div>
+          <div className="space-y-2">
+            <label htmlFor="password" className="text-sm text-zinc-300">
+              Password
+            </label>
+            <Input
+              id="password"
               required
               type="password"
               value={password}

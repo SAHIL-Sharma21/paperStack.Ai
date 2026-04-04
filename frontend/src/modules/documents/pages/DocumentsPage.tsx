@@ -1,16 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { FileText, Trash2, UploadCloud } from 'lucide-react';
-import { useState } from 'react';
-import { Button } from '../../../components/ui/button';
+import { BookMarked, Download, Eye, FileText, FolderPlus, Search, Trash2 } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Button, buttonVariants } from '../../../components/ui/button';
 import { Badge } from '../../../components/ui/badge';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '../../../components/ui/card';
+import { DocumentPreviewDialog } from '../../../components/DocumentPreviewDialog';
+import { Input } from '../../../components/ui/input';
+import { LazyDocumentThumbnail } from '../../../components/LazyDocumentThumbnail';
+import { cn } from '../../../lib/utils';
 import { documentsApi } from '../../../lib/api';
+import type { DocumentItem } from '../../../lib/types';
 
 function statusVariant(status: string): 'processing' | 'completed' | 'failed' | 'default' {
   const normalized = status.toLowerCase();
@@ -20,25 +19,57 @@ function statusVariant(status: string): 'processing' | 'completed' | 'failed' | 
   return 'default';
 }
 
+function formatBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '—';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let i = 0;
+  let n = bytes;
+  while (n >= 1024 && i < units.length - 1) {
+    n /= 1024;
+    i += 1;
+  }
+  return `${n < 10 && i > 0 ? n.toFixed(1) : Math.round(n)} ${units[i]}`;
+}
+
+function formatShortDate(iso: string | undefined): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(d);
+}
+
 export function DocumentsPage() {
   const queryClient = useQueryClient();
-  const [uploadError, setUploadError] = useState<string | null>(null);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [filter, setFilter] = useState('');
+  const [uploadSuccessBanner, setUploadSuccessBanner] = useState(false);
+  const [previewDoc, setPreviewDoc] = useState<DocumentItem | null>(null);
+
+  useEffect(() => {
+    const state = location.state as { uploadSuccess?: boolean } | undefined;
+    if (!state?.uploadSuccess) return;
+    const path = location.pathname;
+    const id = window.setTimeout(() => {
+      setUploadSuccessBanner(true);
+      navigate(path, { replace: true, state: {} });
+    }, 0);
+    return () => window.clearTimeout(id);
+  }, [location.pathname, location.state, navigate]);
+
+  useEffect(() => {
+    if (!uploadSuccessBanner) return;
+    const t = window.setTimeout(() => setUploadSuccessBanner(false), 5000);
+    return () => window.clearTimeout(t);
+  }, [uploadSuccessBanner]);
 
   const documentsQuery = useQuery({
     queryKey: ['documents'],
     queryFn: documentsApi.list,
-  });
-
-  const uploadMutation = useMutation({
-    mutationFn: documentsApi.upload,
-    onSuccess: () => {
-      setUploadError(null);
-      void queryClient.invalidateQueries({ queryKey: ['documents'] });
-    },
-    onError: (err) => {
-      setUploadError('Upload failed. Try another file.');
-      console.error('[DocumentsPage] upload error:', err);
-    },
   });
 
   const deleteMutation = useMutation({
@@ -48,75 +79,357 @@ export function DocumentsPage() {
     },
   });
 
-  function handleFileChange(file: File | null) {
-    if (!file) return;
-    uploadMutation.mutate(file);
-  }
+  const docs = useMemo(() => documentsQuery.data ?? [], [documentsQuery.data]);
+  const filtered = useMemo(() => {
+    const q = filter.trim().toLowerCase();
+    if (!q) return docs;
+    return docs.filter((d) => d.originalName.toLowerCase().includes(q));
+  }, [docs, filter]);
 
   return (
-    <section className="space-y-5">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <UploadCloud className="h-5 w-5 text-orange-300" />
-            Documents
-          </CardTitle>
-          <CardDescription>
-            Upload PDF/Word files, wait for processing, then run semantic search.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <input
-            className="block w-full text-sm text-zinc-300 file:mr-4 file:rounded-lg file:border-0 file:bg-orange-500 file:px-3 file:py-2 file:text-sm file:font-medium file:text-zinc-950 hover:file:bg-orange-400"
-            type="file"
-            accept="application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)}
-          />
-          {uploadMutation.isPending ? (
-            <p className="text-sm text-zinc-400">Uploading document...</p>
-          ) : null}
-          {uploadError ? <p className="text-sm text-rose-300">{uploadError}</p> : null}
-        </CardContent>
-      </Card>
+    <div className="space-y-8">
+      {previewDoc ? (
+        <DocumentPreviewDialog
+          key={previewDoc.id}
+          doc={previewDoc}
+          onClose={() => setPreviewDoc(null)}
+        />
+      ) : null}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Your files</CardTitle>
-          <CardDescription>Delete documents when you no longer need them.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {documentsQuery.isLoading ? <p className="text-sm text-zinc-400">Loading...</p> : null}
-          {documentsQuery.isError ? (
-            <p className="text-sm text-rose-300">Failed to load documents.</p>
-          ) : null}
+      {uploadSuccessBanner ? (
+        <div
+          role="status"
+          className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100"
+        >
+          Document uploaded. It may show as processing until indexing finishes.
+        </div>
+      ) : null}
 
-          <ul className="space-y-3">
-            {documentsQuery.data?.map((doc) => (
-              <li
-                key={doc.id}
-                className="flex flex-col gap-3 rounded-xl border border-zinc-800 bg-zinc-900 p-4 md:flex-row md:items-center md:justify-between"
-              >
-                <div className="space-y-1">
-                  <p className="flex items-center gap-2 text-zinc-100">
-                    <FileText className="h-4 w-4 text-zinc-400" />
-                    <span className="font-medium">{doc.originalName}</span>
-                  </p>
-                  <Badge variant={statusVariant(doc.status)}>{doc.status}</Badge>
-                </div>
-                <Button
-                  type="button"
-                  variant="danger"
-                  size="sm"
-                  onClick={() => deleteMutation.mutate(doc.id)}
-                  disabled={deleteMutation.isPending}
-                >
-                  <Trash2 className="mr-2 h-4 w-4" /> Delete
-                </Button>
-              </li>
-            ))}
-          </ul>
-        </CardContent>
-      </Card>
-    </section>
+      <div className="space-y-2">
+        <h1 className="text-3xl font-semibold tracking-tight text-zinc-50">Document library</h1>
+        <p className="max-w-2xl text-sm text-zinc-400">
+          Upload new files from the home page, then preview, download, or remove them here.
+          Libraries and groups will arrive when the API supports them.
+        </p>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <StatCard label="Total documents" value={String(docs.length)} />
+        <StatCard
+          label="Libraries"
+          value="0"
+          hint="Create groups when backend support lands"
+        />
+      </div>
+
+      <section className="rounded-2xl border border-zinc-800/80 bg-zinc-900/40 p-5 shadow-[inset_0_1px_0_0_rgba(255,255,255,.04)]">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2">
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-orange-500/15 text-orange-300 ring-1 ring-orange-400/20">
+              <BookMarked className="h-4 w-4" aria-hidden />
+            </span>
+            <div>
+              <h2 className="text-sm font-semibold text-zinc-100">Libraries</h2>
+              <p className="text-xs text-zinc-500">Group related documents (coming with API support)</p>
+            </div>
+          </div>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            className="gap-2"
+            disabled
+            title="Requires backend support for libraries"
+          >
+            <FolderPlus className="h-4 w-4" />
+            New library
+          </Button>
+        </div>
+        <p className="mt-4 rounded-xl border border-dashed border-zinc-700/80 bg-zinc-950/30 px-4 py-8 text-center text-sm text-zinc-500">
+          No libraries yet. You will create named collections here to bundle PDFs and Word files for
+          search and sharing.
+        </p>
+      </section>
+
+      <section className="space-y-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="text-lg font-semibold text-zinc-100">All documents</h2>
+          <div className="relative w-full sm:max-w-xs">
+            <Search
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500"
+              aria-hidden
+            />
+            <Input
+              type="search"
+              placeholder="Search by file name..."
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              className="h-10 border-zinc-800 bg-zinc-950/50 pl-9 text-zinc-100 placeholder:text-zinc-600"
+              aria-label="Filter documents by name"
+            />
+          </div>
+        </div>
+
+        {documentsQuery.isLoading ? (
+          <p className="text-sm text-zinc-400">Loading documents...</p>
+        ) : null}
+        {documentsQuery.isError ? (
+          <p className="text-sm text-rose-300">Failed to load documents.</p>
+        ) : null}
+
+        {!documentsQuery.isLoading && !documentsQuery.isError && docs.length === 0 ? (
+          <EmptyLibrary />
+        ) : null}
+
+        {!documentsQuery.isLoading && !documentsQuery.isError && docs.length > 0 && filtered.length === 0 ? (
+          <p className="rounded-xl border border-zinc-800 bg-zinc-900/30 py-10 text-center text-sm text-zinc-500">
+            No files match &ldquo;{filter.trim()}&rdquo;.
+          </p>
+        ) : null}
+
+        {!documentsQuery.isLoading && !documentsQuery.isError && filtered.length > 0 ? (
+          <>
+            <div className="hidden overflow-x-auto rounded-xl border border-zinc-800 md:block">
+              <table className="w-full min-w-[640px] border-collapse text-left text-sm">
+                <thead>
+                  <tr className="border-b border-zinc-800 bg-zinc-950/50 text-xs font-medium uppercase tracking-wider text-zinc-500">
+                    <th className="px-3 py-3 font-medium">Thumb</th>
+                    <th className="px-3 py-3 font-medium">Document</th>
+                    <th className="px-3 py-3 font-medium">Status</th>
+                    <th className="hidden px-3 py-3 font-medium lg:table-cell">Size</th>
+                    <th className="hidden px-3 py-3 font-medium xl:table-cell">Added</th>
+                    <th className="px-3 py-3 text-right font-medium">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-800">
+                  {filtered.map((doc) => (
+                    <DocumentTableRow
+                      key={doc.id}
+                      doc={doc}
+                      onPreview={() => setPreviewDoc(doc)}
+                      onDelete={() => deleteMutation.mutate(doc.id)}
+                      deletePending={deleteMutation.isPending}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <ul className="space-y-3 md:hidden">
+              {filtered.map((doc) => (
+                <DocumentMobileCard
+                  key={doc.id}
+                  doc={doc}
+                  onPreview={() => setPreviewDoc(doc)}
+                  onDelete={() => deleteMutation.mutate(doc.id)}
+                  deletePending={deleteMutation.isPending}
+                />
+              ))}
+            </ul>
+          </>
+        ) : null}
+      </section>
+    </div>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  hint,
+  accent,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  accent?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        'rounded-2xl border border-zinc-800/90 bg-zinc-900/50 px-4 py-4 shadow-[inset_0_1px_0_0_rgba(255,255,255,.04)]',
+        accent && 'border-orange-500/25 ring-1 ring-orange-500/15',
+      )}
+    >
+      <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">{label}</p>
+      <p className="mt-1 text-2xl font-semibold tabular-nums text-zinc-50">{value}</p>
+      {hint ? <p className="mt-1 text-xs text-zinc-600">{hint}</p> : null}
+    </div>
+  );
+}
+
+function EmptyLibrary() {
+  return (
+    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-zinc-700 bg-zinc-950/30 px-6 py-16 text-center">
+      <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-zinc-800/80 text-zinc-500">
+        <FileText className="h-7 w-7" strokeWidth={1.5} aria-hidden />
+      </div>
+      <h3 className="text-lg font-medium text-zinc-200">No documents yet</h3>
+      <p className="mt-2 max-w-sm text-sm text-zinc-500">
+        Go to the home page and drop a PDF or Word file into the upload area to add your first
+        document.
+      </p>
+      <Link to="/" className={cn(buttonVariants(), 'mt-6 inline-flex gap-2')}>
+        Upload from home
+      </Link>
+    </div>
+  );
+}
+
+function DocumentTableRow({
+  doc,
+  onPreview,
+  onDelete,
+  deletePending,
+}: {
+  doc: DocumentItem;
+  onPreview: () => void;
+  onDelete: () => void;
+  deletePending: boolean;
+}) {
+  return (
+    <tr className="bg-zinc-900/20 transition-colors hover:bg-zinc-800/30">
+      <td className="px-3 py-3 align-middle">
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={onPreview}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              onPreview();
+            }
+          }}
+          className="inline-block cursor-pointer rounded-md ring-offset-2 ring-offset-zinc-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/60"
+          title="Preview"
+        >
+          <LazyDocumentThumbnail key={doc.id} doc={doc} />
+        </div>
+      </td>
+      <td className="px-3 py-3 align-middle">
+        <div className="flex min-w-0 items-center gap-2">
+          <FileText className="hidden h-4 w-4 shrink-0 text-zinc-500 sm:block" aria-hidden />
+          <span className="min-w-0 truncate font-medium text-zinc-100">{doc.originalName}</span>
+        </div>
+      </td>
+      <td className="px-3 py-3 align-middle">
+        <Badge variant={statusVariant(doc.status)}>{doc.status}</Badge>
+      </td>
+      <td className="hidden px-3 py-3 align-middle text-zinc-400 tabular-nums lg:table-cell">
+        {formatBytes(doc.size)}
+      </td>
+      <td className="hidden px-3 py-3 align-middle text-zinc-500 tabular-nums xl:table-cell">
+        {formatShortDate(doc.createdAt)}
+      </td>
+      <td className="px-3 py-3 align-middle">
+        <div className="flex flex-wrap items-center justify-end gap-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="text-zinc-300"
+            onClick={onPreview}
+            title="Preview"
+          >
+            <Eye className="h-4 w-4" />
+            <span className="sr-only">Preview</span>
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="text-zinc-300"
+            onClick={() => void documentsApi.downloadToDevice(doc.id, doc.originalName)}
+            title="Download"
+          >
+            <Download className="h-4 w-4" />
+            <span className="sr-only">Download</span>
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="text-rose-300 hover:bg-rose-500/10 hover:text-rose-200"
+            onClick={onDelete}
+            disabled={deletePending}
+            title="Delete"
+          >
+            <Trash2 className="h-4 w-4" />
+            <span className="sr-only">Delete</span>
+          </Button>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+function DocumentMobileCard({
+  doc,
+  onPreview,
+  onDelete,
+  deletePending,
+}: {
+  doc: DocumentItem;
+  onPreview: () => void;
+  onDelete: () => void;
+  deletePending: boolean;
+}) {
+  return (
+    <li className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
+      <div className="flex gap-3">
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={onPreview}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              onPreview();
+            }
+          }}
+          className="shrink-0 cursor-pointer rounded-md ring-offset-2 ring-offset-zinc-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/60"
+        >
+          <LazyDocumentThumbnail key={doc.id} doc={doc} />
+        </div>
+        <div className="min-w-0 flex-1 space-y-3">
+          <div className="space-y-2">
+            <p className="font-medium leading-snug text-zinc-100">{doc.originalName}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant={statusVariant(doc.status)}>{doc.status}</Badge>
+              <span className="text-xs text-zinc-500 tabular-nums">{formatBytes(doc.size)}</span>
+              <span className="text-xs text-zinc-600 tabular-nums">
+                {formatShortDate(doc.createdAt)}
+              </span>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="secondary" size="sm" className="gap-1.5" onClick={onPreview}>
+              <Eye className="h-4 w-4" />
+              Preview
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => void documentsApi.downloadToDevice(doc.id, doc.originalName)}
+            >
+              <Download className="h-4 w-4" />
+              Download
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              size="sm"
+              onClick={onDelete}
+              disabled={deletePending}
+            >
+              <Trash2 className="mr-1.5 h-4 w-4" />
+              Delete
+            </Button>
+          </div>
+        </div>
+      </div>
+    </li>
   );
 }

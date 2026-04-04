@@ -52,7 +52,12 @@ export function SearchPage() {
                 min={1}
                 max={50}
                 value={limit}
-                onChange={(e) => setLimit(Number(e.target.value))}
+                onChange={(e) => {
+                  const value = Number(e.target.value);
+                  if(!Number.isNaN(value) && value >= 1 && value <= 50){
+                    setLimit(value);
+                  }
+                }}
               />
             </div>
             <Button type="submit" disabled={searchMutation.isPending}>

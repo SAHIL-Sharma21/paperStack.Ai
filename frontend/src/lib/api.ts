@@ -61,6 +61,37 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   return (await response.json()) as T;
 }
 
+async function fetchAuthorizedBlob(
+  path: string,
+  params?: Record<string, string | number | undefined>,
+): Promise<Blob> {
+  const token = localStorage.getItem('paperstack_token');
+  const response = await fetch(buildUrl(path, params), {
+    method: 'GET',
+    credentials: 'include',
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+
+  if (!response.ok) {
+    let message = `Request failed with status ${response.status}`;
+    try {
+      const errData = (await response.json()) as { message?: string | string[] };
+      if (Array.isArray(errData.message)) {
+        message = errData.message.join(', ');
+      } else if (typeof errData.message === 'string') {
+        message = errData.message;
+      }
+    } catch {
+      // keep default message
+    }
+    throw new ApiError(message, response.status);
+  }
+
+  return response.blob();
+}
+
 export const authApi = {
   login(emailOrUsername: string, password: string): Promise<AuthResponse> {
     return request<AuthResponse>('/auth/login', {
@@ -101,5 +132,27 @@ export const documentsApi = {
     return request<{ deleted: true }>(`/documents/${documentId}`, {
       method: 'DELETE',
     });
+  },
+
+  fetchFileBlob(documentId: string, options?: { inline?: boolean }): Promise<Blob> {
+    return fetchAuthorizedBlob(`/documents/${documentId}/file`, {
+      ...(options?.inline ? { inline: '1' } : {}),
+    });
+  },
+
+  async downloadToDevice(documentId: string, filename: string): Promise<void> {
+    const blob = await fetchAuthorizedBlob(`/documents/${documentId}/file`);
+    const url = URL.createObjectURL(blob);
+    try {
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.rel = 'noopener';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } finally {
+      URL.revokeObjectURL(url);
+    }
   },
 };
