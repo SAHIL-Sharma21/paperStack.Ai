@@ -1,4 +1,4 @@
-import { ArrowRight, FolderOpen, Search, Sparkles, UploadCloud } from 'lucide-react';
+import { ArrowRight, FolderOpen } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAppSelector } from '../../../app/hooks';
 import { selectIsAuthenticated } from '../../auth/store/selectors';
@@ -13,24 +13,7 @@ import {
 } from '../../../components/ui/card';
 import { cn } from '../../../lib/utils';
 import { LandingHeroIllustration } from '../components/LandingHeroIllustration';
-
-const features = [
-  {
-    icon: UploadCloud,
-    title: 'Drop & index',
-    body: 'Upload PDFs and Word files. We process them in the background so you can focus on the work.',
-  },
-  {
-    icon: Search,
-    title: 'Semantic search',
-    body: 'Ask in natural language and find the right passage across your whole document library.',
-  },
-  {
-    icon: Sparkles,
-    title: 'Built for focus',
-    body: 'A calm, dark interface with warm accents — designed for long research sessions.',
-  },
-] as const;
+import features from './homePageData';
 
 export function HomePage() {
   const navigate = useNavigate();

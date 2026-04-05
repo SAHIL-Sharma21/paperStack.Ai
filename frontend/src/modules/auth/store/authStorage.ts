@@ -1,7 +1,5 @@
 import type { AuthUser } from '../../../lib/types';
-
-const TOKEN_KEY = 'paperstack_token';
-const USER_KEY = 'paperstack_user';
+import { TOKEN_KEY, USER_KEY } from './constatnt';
 
 export type StoredAuth = {
   token: string | null;
