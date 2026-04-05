@@ -25,12 +25,21 @@ type LazyDocumentThumbnailProps = {
 
 export function LazyDocumentThumbnail({ doc, className }: LazyDocumentThumbnailProps) {
   const rootRef = useRef<HTMLDivElement>(null);
-  const fetchedRef = useRef(false);
+  const lastFetchedIdRef = useRef<string | null>(null);
   const [inView, setInView] = useState(false);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [phase, setPhase] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
 
   const pdf = isPdfDocument(doc);
+
+  useEffect(() => {
+    lastFetchedIdRef.current = null;
+    setPhase('idle');
+    setBlobUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+  }, [doc.id]);
 
   useEffect(() => {
     const el = rootRef.current;
@@ -46,11 +55,11 @@ export function LazyDocumentThumbnail({ doc, className }: LazyDocumentThumbnailP
   }, []);
 
   useEffect(() => {
-    if (!pdf || !inView || fetchedRef.current) return;
+    if (!pdf || !inView) return;
+    if (lastFetchedIdRef.current === doc.id) return;
 
     let cancelled = false;
     let objectUrl: string | null = null;
-    fetchedRef.current = true;
 
     const startId = window.setTimeout(() => {
       setPhase('loading');
@@ -61,10 +70,11 @@ export function LazyDocumentThumbnail({ doc, className }: LazyDocumentThumbnailP
           objectUrl = URL.createObjectURL(blob);
           setBlobUrl(objectUrl);
           setPhase('ready');
+          lastFetchedIdRef.current = doc.id;
         })
         .catch(() => {
           if (!cancelled) {
-            fetchedRef.current = false;
+            lastFetchedIdRef.current = null;
             setPhase('error');
           }
         });
