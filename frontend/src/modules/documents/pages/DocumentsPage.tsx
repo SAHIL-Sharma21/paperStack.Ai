@@ -10,37 +10,7 @@ import { LazyDocumentThumbnail } from '../../../components/LazyDocumentThumbnail
 import { cn } from '../../../lib/utils';
 import { documentsApi } from '../../../lib/api';
 import type { DocumentItem } from '../../../lib/types';
-
-function statusVariant(status: string): 'processing' | 'completed' | 'failed' | 'default' {
-  const normalized = status.toLowerCase();
-  if (normalized === 'processing') return 'processing';
-  if (normalized === 'completed') return 'completed';
-  if (normalized === 'failed') return 'failed';
-  return 'default';
-}
-
-function formatBytes(bytes: number): string {
-  if (!Number.isFinite(bytes) || bytes <= 0) return '—';
-  const units = ['B', 'KB', 'MB', 'GB'];
-  let i = 0;
-  let n = bytes;
-  while (n >= 1024 && i < units.length - 1) {
-    n /= 1024;
-    i += 1;
-  }
-  return `${n < 10 && i > 0 ? n.toFixed(1) : Math.round(n)} ${units[i]}`;
-}
-
-function formatShortDate(iso: string | undefined): string {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '—';
-  return new Intl.DateTimeFormat(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  }).format(d);
-}
+import { formatBytes, formatShortDate, statusVariant } from './helper';
 
 export function DocumentsPage() {
   const queryClient = useQueryClient();
