@@ -116,6 +116,8 @@ export function LazyDocumentThumbnail({ doc, className }: LazyDocumentThumbnailP
         <div className="pointer-events-none absolute left-0 top-0 h-[200%] w-[200%] origin-top-left scale-[0.5]">
           <iframe
             title=""
+            aria-hidden="true"
+            tabIndex={-1}
             src={`${blobUrl}#toolbar=0&navpanes=0&scrollbar=0`}
             className="h-full w-full border-0 opacity-95"
           />

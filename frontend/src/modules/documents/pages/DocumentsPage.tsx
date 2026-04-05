@@ -48,6 +48,7 @@ export function DocumentsPage() {
   const navigate = useNavigate();
   const [filter, setFilter] = useState('');
   const [uploadSuccessBanner, setUploadSuccessBanner] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [previewDoc, setPreviewDoc] = useState<DocumentItem | null>(null);
 
   useEffect(() => {
@@ -74,8 +75,15 @@ export function DocumentsPage() {
 
   const deleteMutation = useMutation({
     mutationFn: documentsApi.remove,
+    onMutate: () => {
+      setDeleteError(null);
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['documents'] });
+    },
+    onError: (error) => {
+      console.error('[DocumentsPage] delete failed:', error);
+      setDeleteError('Could not delete the document. Please try again.');
     },
   });
 
@@ -102,6 +110,15 @@ export function DocumentsPage() {
           className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100"
         >
           Document uploaded. It may show as processing until indexing finishes.
+        </div>
+      ) : null}
+
+      {deleteError ? (
+        <div
+          role="alert"
+          className="rounded-xl border border-rose-500/35 bg-rose-500/10 px-4 py-3 text-sm text-rose-100"
+        >
+          {deleteError}
         </div>
       ) : null}
 
@@ -290,21 +307,14 @@ function DocumentTableRow({
   return (
     <tr className="bg-zinc-900/20 transition-colors hover:bg-zinc-800/30">
       <td className="px-3 py-3 align-middle">
-        <div
-          role="button"
-          tabIndex={0}
+        <button
+          type="button"
           onClick={onPreview}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              onPreview();
-            }
-          }}
-          className="inline-block cursor-pointer rounded-md ring-offset-2 ring-offset-zinc-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/60"
-          title="Preview"
+          className="inline-block cursor-pointer rounded-md border-0 bg-transparent p-0 ring-offset-2 ring-offset-zinc-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/60"
+          aria-label={`Preview ${doc.originalName}`}
         >
           <LazyDocumentThumbnail key={doc.id} doc={doc} />
-        </div>
+        </button>
       </td>
       <td className="px-3 py-3 align-middle">
         <div className="flex min-w-0 items-center gap-2">
@@ -377,20 +387,14 @@ function DocumentMobileCard({
   return (
     <li className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-4">
       <div className="flex gap-3">
-        <div
-          role="button"
-          tabIndex={0}
+        <button
+          type="button"
           onClick={onPreview}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              onPreview();
-            }
-          }}
-          className="shrink-0 cursor-pointer rounded-md ring-offset-2 ring-offset-zinc-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/60"
+          className="shrink-0 cursor-pointer rounded-md border-0 bg-transparent p-0 ring-offset-2 ring-offset-zinc-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/60"
+          aria-label={`Preview ${doc.originalName}`}
         >
           <LazyDocumentThumbnail key={doc.id} doc={doc} />
-        </div>
+        </button>
         <div className="min-w-0 flex-1 space-y-3">
           <div className="space-y-2">
             <p className="font-medium leading-snug text-zinc-100">{doc.originalName}</p>

@@ -53,9 +53,13 @@ export function DocumentDropZone({ onUploadSuccess, className }: DocumentDropZon
   });
 
   function handleFileChange(file: File | null) {
-    if (!file) return;
+    if (!file) {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
     if (!isAcceptedFile(file)) {
       setUploadError('Please choose a PDF or Word file (.pdf, .doc, .docx).');
+      if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
     setUploadError(null);
@@ -78,18 +82,6 @@ export function DocumentDropZone({ onUploadSuccess, className }: DocumentDropZon
         onChange={(e) => handleFileChange(e.target.files?.[0] ?? null)}
       />
       <div
-        role="button"
-        tabIndex={uploadMutation.isPending ? -1 : 0}
-        aria-disabled={uploadMutation.isPending}
-        aria-label="Drop a PDF or Word file here, or press Enter to browse"
-        onClick={() => openFilePicker()}
-        onKeyDown={(e) => {
-          if (uploadMutation.isPending) return;
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            openFilePicker();
-          }
-        }}
         onDragEnter={(e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -116,9 +108,8 @@ export function DocumentDropZone({ onUploadSuccess, className }: DocumentDropZon
           handleFileChange(file);
         }}
         className={cn(
-          'group relative flex min-h-[min(20rem,48vh)] cursor-pointer flex-col items-center justify-center gap-5 rounded-2xl border-2 border-dashed px-6 py-10 text-center transition-colors',
+          'group relative flex min-h-[min(20rem,48vh)] flex-col items-center justify-center gap-5 rounded-2xl border-2 border-dashed px-6 py-10 text-center transition-colors',
           'border-zinc-700/90 bg-zinc-950/40 hover:border-zinc-500 hover:bg-zinc-900/50',
-          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-400/60',
           isDragging && 'border-orange-400 bg-orange-500/10 ring-2 ring-orange-400/30',
           uploadMutation.isPending && 'pointer-events-none cursor-wait opacity-70',
         )}
