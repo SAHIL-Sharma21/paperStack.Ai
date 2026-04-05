@@ -34,11 +34,14 @@ export function LazyDocumentThumbnail({ doc, className }: LazyDocumentThumbnailP
 
   useEffect(() => {
     lastFetchedIdRef.current = null;
-    setPhase('idle');
-    setBlobUrl((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return null;
-    });
+    const tid = window.setTimeout(() => {
+      setPhase('idle');
+      setBlobUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+    }, 0);
+    return () => window.clearTimeout(tid);
   }, [doc.id]);
 
   useEffect(() => {

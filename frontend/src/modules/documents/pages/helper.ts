@@ -24,7 +24,7 @@ export function statusVariant(status: string): DocumentStatus {
 }
 
 export function formatBytes(bytes: number): string {
-    if (!Number.isFinite(bytes) || bytes <= 0) return '—';
+    if (!Number.isFinite(bytes) || bytes < 0) return '—';
     const units = [UNITS.B, UNITS.KB, UNITS.MB, UNITS.GB];
     let i = 0;
     let n = bytes;

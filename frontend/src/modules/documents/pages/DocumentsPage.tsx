@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BookMarked, Download, Eye, FileText, FolderPlus, Search, Trash2 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button, buttonVariants } from '../../../components/ui/button';
 import { Badge } from '../../../components/ui/badge';
@@ -18,7 +18,8 @@ export function DocumentsPage() {
   const navigate = useNavigate();
   const [filter, setFilter] = useState('');
   const [uploadSuccessBanner, setUploadSuccessBanner] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [libraryError, setLibraryError] = useState<string | null>(null);
+  const [downloadSuccessBanner, setDownloadSuccessBanner] = useState(false);
   const [previewDoc, setPreviewDoc] = useState<DocumentItem | null>(null);
 
   useEffect(() => {
@@ -38,6 +39,24 @@ export function DocumentsPage() {
     return () => window.clearTimeout(t);
   }, [uploadSuccessBanner]);
 
+  useEffect(() => {
+    if (!downloadSuccessBanner) return;
+    const t = window.setTimeout(() => setDownloadSuccessBanner(false), 5000);
+    return () => window.clearTimeout(t);
+  }, [downloadSuccessBanner]);
+
+  const handleDownload = useCallback(async (documentId: string, originalName: string) => {
+    setLibraryError(null);
+    setDownloadSuccessBanner(false);
+    try {
+      await documentsApi.downloadToDevice(documentId, originalName);
+      setDownloadSuccessBanner(true);
+    } catch (error) {
+      console.error('[DocumentsPage] download failed:', error);
+      setLibraryError('Could not download the document. Please try again.');
+    }
+  }, []);
+
   const documentsQuery = useQuery({
     queryKey: ['documents'],
     queryFn: documentsApi.list,
@@ -46,14 +65,14 @@ export function DocumentsPage() {
   const deleteMutation = useMutation({
     mutationFn: documentsApi.remove,
     onMutate: () => {
-      setDeleteError(null);
+      setLibraryError(null);
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['documents'] });
     },
     onError: (error) => {
       console.error('[DocumentsPage] delete failed:', error);
-      setDeleteError('Could not delete the document. Please try again.');
+      setLibraryError('Could not delete the document. Please try again.');
     },
   });
 
@@ -83,12 +102,21 @@ export function DocumentsPage() {
         </div>
       ) : null}
 
-      {deleteError ? (
+      {downloadSuccessBanner ? (
+        <div
+          role="status"
+          className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100"
+        >
+          Download started — check your downloads folder if the file does not open automatically.
+        </div>
+      ) : null}
+
+      {libraryError ? (
         <div
           role="alert"
           className="rounded-xl border border-rose-500/35 bg-rose-500/10 px-4 py-3 text-sm text-rose-100"
         >
-          {deleteError}
+          {libraryError}
         </div>
       ) : null}
 
@@ -194,6 +222,7 @@ export function DocumentsPage() {
                       key={doc.id}
                       doc={doc}
                       onPreview={() => setPreviewDoc(doc)}
+                      onDownload={() => void handleDownload(doc.id, doc.originalName)}
                       onDelete={() => deleteMutation.mutate(doc.id)}
                       deletePending={deleteMutation.isPending}
                     />
@@ -208,6 +237,7 @@ export function DocumentsPage() {
                   key={doc.id}
                   doc={doc}
                   onPreview={() => setPreviewDoc(doc)}
+                  onDownload={() => void handleDownload(doc.id, doc.originalName)}
                   onDelete={() => deleteMutation.mutate(doc.id)}
                   deletePending={deleteMutation.isPending}
                 />
@@ -266,11 +296,13 @@ function EmptyLibrary() {
 function DocumentTableRow({
   doc,
   onPreview,
+  onDownload,
   onDelete,
   deletePending,
 }: {
   doc: DocumentItem;
   onPreview: () => void;
+  onDownload: () => void;
   onDelete: () => void;
   deletePending: boolean;
 }) {
@@ -319,7 +351,7 @@ function DocumentTableRow({
             variant="ghost"
             size="sm"
             className="text-zinc-300"
-            onClick={() => void documentsApi.downloadToDevice(doc.id, doc.originalName)}
+            onClick={onDownload}
             title="Download"
           >
             <Download className="h-4 w-4" />
@@ -346,11 +378,13 @@ function DocumentTableRow({
 function DocumentMobileCard({
   doc,
   onPreview,
+  onDownload,
   onDelete,
   deletePending,
 }: {
   doc: DocumentItem;
   onPreview: () => void;
+  onDownload: () => void;
   onDelete: () => void;
   deletePending: boolean;
 }) {
@@ -386,7 +420,7 @@ function DocumentMobileCard({
               variant="secondary"
               size="sm"
               className="gap-1.5"
-              onClick={() => void documentsApi.downloadToDevice(doc.id, doc.originalName)}
+              onClick={onDownload}
             >
               <Download className="h-4 w-4" />
               Download
