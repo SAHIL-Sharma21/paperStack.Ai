@@ -1,0 +1,33 @@
+export type AuthUser = {
+  id: string;
+  email: string;
+  username: string;
+};
+
+export type AuthResponse = {
+  access_token: string;
+  message: string;
+  user: AuthUser;
+};
+
+export type DocumentItem = {
+  id: string;
+  originalName: string;
+  mimeType: string;
+  size: number;
+  status: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type SearchResult = {
+  documentId: string;
+  originalName: string;
+  text: string;
+  score: number;
+  chunkIndex: number;
+};
+
+export type SearchResponse = {
+  results: SearchResult[];
+};
