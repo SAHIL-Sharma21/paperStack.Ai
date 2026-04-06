@@ -9,16 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
-
-function initialsFromUsername(username: string): string {
-  const parts = username.trim().split(/[\s._-]+/).filter(Boolean);
-  if (parts.length >= 2) {
-    return `${parts[0]![0]}${parts[1]![0]}`.toUpperCase();
-  }
-  const compact = username.replace(/[^a-zA-Z0-9]/g, '');
-  if (compact.length >= 2) return compact.slice(0, 2).toUpperCase();
-  return (username.slice(0, 2) || '?').toUpperCase();
-}
+import { initialsFromUsername } from './helper';
 
 type ProfileMenuProps = {
   user: AuthUser;

@@ -1,10 +1,11 @@
+import { HTTP_METHODS } from './constant';
 import type { AuthResponse, DocumentItem, SearchResponse } from './types';
 
 const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8001/api/v1';
+  import.meta.env.VITE_API_BASE_URL;
 
 type RequestOptions = {
-  method?: 'GET' | 'POST' | 'DELETE' | 'PATCH' | 'PUT';
+  method?: HTTP_METHODS;
   body?: BodyInit | null;
   headers?: Record<string, string>;
   params?: Record<string, string | number | undefined>;
@@ -33,7 +34,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   const token = localStorage.getItem('paperstack_token');
 
   const response = await fetch(buildUrl(path, options.params), {
-    method: options.method ?? 'GET',
+    method: options.method ?? HTTP_METHODS.GET,
     credentials: 'include',
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -53,7 +54,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
         message = errData.message;
       }
     } catch {
-      // keep default message
+      message = `Request failed with status ${response.status}`;
     }
     throw new ApiError(message, response.status);
   }
@@ -67,7 +68,7 @@ async function fetchAuthorizedBlob(
 ): Promise<Blob> {
   const token = localStorage.getItem('paperstack_token');
   const response = await fetch(buildUrl(path, params), {
-    method: 'GET',
+    method: HTTP_METHODS.GET,
     credentials: 'include',
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -77,14 +78,14 @@ async function fetchAuthorizedBlob(
   if (!response.ok) {
     let message = `Request failed with status ${response.status}`;
     try {
-      const errData = (await response.json()) as { message?: string | string[] };
+      const errData = (await response.json()) as { message?: string[] };
       if (Array.isArray(errData.message)) {
         message = errData.message.join(', ');
       } else if (typeof errData.message === 'string') {
         message = errData.message;
       }
     } catch {
-      // keep default message
+      message = `Request failed with status ${response.status}`;
     }
     throw new ApiError(message, response.status);
   }
@@ -95,14 +96,14 @@ async function fetchAuthorizedBlob(
 export const authApi = {
   login(emailOrUsername: string, password: string): Promise<AuthResponse> {
     return request<AuthResponse>('/auth/login', {
-      method: 'POST',
+      method: HTTP_METHODS.POST,
       body: JSON.stringify({ emailOrUsername, password }),
     });
   },
 
   signup(email: string, username: string, password: string): Promise<AuthResponse> {
     return request<AuthResponse>('/auth/signup', {
-      method: 'POST',
+      method: HTTP_METHODS.POST,
       body: JSON.stringify({ email, username, password }),
     });
   },
@@ -117,7 +118,7 @@ export const documentsApi = {
     const formData = new FormData();
     formData.append('file', file);
     return request<DocumentItem>('/documents/upload', {
-      method: 'POST',
+      method: HTTP_METHODS.POST,
       body: formData,
     });
   },
@@ -130,7 +131,7 @@ export const documentsApi = {
 
   remove(documentId: string): Promise<{ deleted: true }> {
     return request<{ deleted: true }>(`/documents/${documentId}`, {
-      method: 'DELETE',
+      method: HTTP_METHODS.DELETE,
     });
   },
 
