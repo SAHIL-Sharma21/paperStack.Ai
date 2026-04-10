@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import type { FormEvent } from 'react';
+import { useState, type SubmitEvent } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { Search as SearchIcon, Sparkles } from 'lucide-react';
 import { documentsApi } from '../../../lib/api';
@@ -21,7 +20,7 @@ export function SearchPage() {
     mutationFn: ({ q, l }: { q: string; l: number }) => documentsApi.search(q, l),
   });
 
-  function onSubmit(e: FormEvent<HTMLFormElement>) {
+  function onSubmit(e: SubmitEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!query.trim()) return;
     searchMutation.mutate({ q: query.trim(), l: limit });

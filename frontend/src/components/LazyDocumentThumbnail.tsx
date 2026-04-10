@@ -3,20 +3,9 @@ import { useEffect, useRef, useState } from 'react';
 import type { DocumentItem } from '../lib/types';
 import { documentsApi } from '../lib/api';
 import { cn } from '../lib/utils';
+import { isPdfDocument, wordLabel } from './helper';
 
-function isPdfDocument(doc: DocumentItem): boolean {
-  return (
-    doc.mimeType === 'application/pdf' || doc.originalName.toLowerCase().endsWith('.pdf')
-  );
-}
 
-function wordLabel(doc: DocumentItem): string {
-  const n = doc.originalName.toLowerCase();
-  if (n.endsWith('.docx')) return 'DOCX';
-  if (n.endsWith('.doc')) return 'DOC';
-  if (doc.mimeType.includes('word')) return 'DOC';
-  return 'FILE';
-}
 
 type LazyDocumentThumbnailProps = {
   doc: DocumentItem;

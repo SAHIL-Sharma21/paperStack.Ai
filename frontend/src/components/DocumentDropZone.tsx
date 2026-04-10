@@ -4,25 +4,12 @@ import { useEffect, useRef, useState } from 'react';
 import { Button } from './ui/button';
 import { cn } from '../lib/utils';
 import { documentsApi } from '../lib/api';
+import { ACCEPT_ATTR } from './constant';
+import { isAcceptedFile } from './helper';
 
-const ACCEPT_ATTR =
-  'application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-
-const ACCEPTED_MIME = new Set([
-  'application/pdf',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-]);
-
-function isAcceptedFile(file: File): boolean {
-  if (file.type && ACCEPTED_MIME.has(file.type)) return true;
-  const lower = file.name.toLowerCase();
-  return lower.endsWith('.pdf') || lower.endsWith('.doc') || lower.endsWith('.docx');
-}
 
 type DocumentDropZoneProps = {
   onUploadSuccess?: () => void;
-  /** Extra class on the outer dashed region */
   className?: string;
 };
 

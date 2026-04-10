@@ -1,10 +1,34 @@
+import { HTTP_METHODS } from './constant';
 import type { AuthResponse, DocumentItem, SearchResponse } from './types';
+const DEFAULT_API_BASE_URL = 'http://localhost:8001/api/v1';
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8001/api/v1';
+
+function resolveApiBaseUrl(): string {
+  const raw = import.meta.env.VITE_API_BASE_URL;
+  const trimmed = typeof raw === 'string' ? raw.trim() : '';
+  let base: string;
+  if (trimmed !== '') {
+    base = trimmed;
+  } else if (import.meta.env.DEV) {
+    base = DEFAULT_API_BASE_URL;
+  } else {
+    throw new Error(
+      'VITE_API_BASE_URL is required in non-development builds. Set it to a valid absolute URL (e.g. https://api.example.com/api/v1).',
+    );
+  }
+  try {
+    return new URL(base).href.replace(/\/$/, '');
+  } catch {
+    throw new Error(
+      `VITE_API_BASE_URL must be a valid absolute URL (e.g. http://localhost:8001/api/v1). Received: ${JSON.stringify(raw)}`,
+    );
+  }
+}
+
+const API_BASE_URL = resolveApiBaseUrl();
 
 type RequestOptions = {
-  method?: 'GET' | 'POST' | 'DELETE' | 'PATCH' | 'PUT';
+  method?: HTTP_METHODS;
   body?: BodyInit | null;
   headers?: Record<string, string>;
   params?: Record<string, string | number | undefined>;
@@ -18,6 +42,8 @@ class ApiError extends Error {
     this.status = status;
   }
 }
+
+type ApiErrorJsonBody = { message?: string | string[] };
 
 function buildUrl(path: string, params?: RequestOptions['params']): string {
   const url = new URL(`${API_BASE_URL}${path}`);
@@ -33,7 +59,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   const token = localStorage.getItem('paperstack_token');
 
   const response = await fetch(buildUrl(path, options.params), {
-    method: options.method ?? 'GET',
+    method: options.method ?? HTTP_METHODS.GET,
     credentials: 'include',
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -46,14 +72,14 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   if (!response.ok) {
     let message = `Request failed with status ${response.status}`;
     try {
-      const errData = (await response.json()) as { message?: string | string[] };
+      const errData = (await response.json()) as ApiErrorJsonBody;
       if (Array.isArray(errData.message)) {
         message = errData.message.join(', ');
       } else if (typeof errData.message === 'string') {
         message = errData.message;
       }
     } catch {
-      // keep default message
+      message = `Request failed with status ${response.status}`;
     }
     throw new ApiError(message, response.status);
   }
@@ -67,7 +93,7 @@ async function fetchAuthorizedBlob(
 ): Promise<Blob> {
   const token = localStorage.getItem('paperstack_token');
   const response = await fetch(buildUrl(path, params), {
-    method: 'GET',
+    method: HTTP_METHODS.GET,
     credentials: 'include',
     headers: {
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -77,14 +103,14 @@ async function fetchAuthorizedBlob(
   if (!response.ok) {
     let message = `Request failed with status ${response.status}`;
     try {
-      const errData = (await response.json()) as { message?: string | string[] };
+      const errData = (await response.json()) as ApiErrorJsonBody;
       if (Array.isArray(errData.message)) {
         message = errData.message.join(', ');
       } else if (typeof errData.message === 'string') {
         message = errData.message;
       }
     } catch {
-      // keep default message
+      message = `Request failed with status ${response.status}`;
     }
     throw new ApiError(message, response.status);
   }
@@ -95,14 +121,14 @@ async function fetchAuthorizedBlob(
 export const authApi = {
   login(emailOrUsername: string, password: string): Promise<AuthResponse> {
     return request<AuthResponse>('/auth/login', {
-      method: 'POST',
+      method: HTTP_METHODS.POST,
       body: JSON.stringify({ emailOrUsername, password }),
     });
   },
 
   signup(email: string, username: string, password: string): Promise<AuthResponse> {
     return request<AuthResponse>('/auth/signup', {
-      method: 'POST',
+      method: HTTP_METHODS.POST,
       body: JSON.stringify({ email, username, password }),
     });
   },
@@ -117,7 +143,7 @@ export const documentsApi = {
     const formData = new FormData();
     formData.append('file', file);
     return request<DocumentItem>('/documents/upload', {
-      method: 'POST',
+      method: HTTP_METHODS.POST,
       body: formData,
     });
   },
@@ -130,7 +156,7 @@ export const documentsApi = {
 
   remove(documentId: string): Promise<{ deleted: true }> {
     return request<{ deleted: true }>(`/documents/${documentId}`, {
-      method: 'DELETE',
+      method: HTTP_METHODS.DELETE,
     });
   },
 

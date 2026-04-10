@@ -3,24 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { DocumentItem } from '../lib/types';
 import { documentsApi } from '../lib/api';
 import { Button } from './ui/button';
-
-function isPdfDocument(doc: DocumentItem): boolean {
-  return (
-    doc.mimeType === 'application/pdf' || doc.originalName.toLowerCase().endsWith('.pdf')
-  );
-}
-
-function getFocusableElements(container: HTMLElement): HTMLElement[] {
-  const selector =
-    'button:not([disabled]), [href]:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), iframe, [tabindex]:not([tabindex="-1"])';
-  return Array.from(container.querySelectorAll<HTMLElement>(selector)).filter((el) => {
-    if (el.tabIndex < 0) return false;
-    if (el.closest('[aria-hidden="true"]')) return false;
-    const style = window.getComputedStyle(el);
-    if (style.visibility === 'hidden' || style.display === 'none') return false;
-    return true;
-  });
-}
+import { getFocusableElements, isPdfDocument } from './helper';
 
 type DocumentPreviewDialogProps = {
   doc: DocumentItem;
@@ -30,7 +13,6 @@ type DocumentPreviewDialogProps = {
 export function DocumentPreviewDialog({ doc, onClose }: DocumentPreviewDialogProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const previousActiveElementRef = useRef<Element | null>(null);
-
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
