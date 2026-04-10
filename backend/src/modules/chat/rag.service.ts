@@ -3,9 +3,9 @@
  * @author: Sahil Sharma
  */
 
-import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { GoogleGenAI } from '@google/genai';
+import { Inject, Injectable } from '@nestjs/common';
+import type { LlmChatPort } from '../llm/llm-chat.port';
+import { LLM_CHAT_PORT } from '../llm/llm.tokens';
 import { EmbeddingsService } from '../embeddings/embeddings.service';
 import { VectordbService } from '../vectordb/vectordb.service';
 import type { ChatMessage } from './schemas/conversation.schema';
@@ -14,23 +14,11 @@ const RAG_TOP_K = 8;
 
 @Injectable()
 export class RagService {
-  private geminiClient: GoogleGenAI;
-
   constructor(
-    private config: ConfigService,
+    @Inject(LLM_CHAT_PORT) private readonly llm: LlmChatPort,
     private embeddingsService: EmbeddingsService,
     private vectordbService: VectordbService,
-  ) {
-    const apiKey = this.config.getOrThrow<string>('GEMINI_API_KEY');
-    this.geminiClient = new GoogleGenAI({ apiKey });
-  }
-
-  private getModel(): string {
-    return this.config.get<string>(
-      'GEMINI_CHAT_MODEL',
-      'gemini-2.0-flash',
-    );
-  }
+  ) {}
 
   async *streamRagResponse(
     userId: string,
@@ -46,26 +34,21 @@ export class RagService {
     );
 
     const context = results
-      .map((r) => String(r.payload?.text ?? ''))
+      .map((r) => {
+        const raw = r.payload?.text;
+        return typeof raw === 'string' ? raw : '';
+      })
       .filter(Boolean)
       .join('\n\n---\n\n');
 
     const systemInstruction = this.buildSystemPrompt(context);
 
-    const contents = this.buildContents(history, query);
+    const messages = this.buildLlmMessages(history, query, systemInstruction);
 
-    const stream = await this.geminiClient.models.generateContentStream({
-      model: this.getModel(),
-      contents,
-      config: {
-        systemInstruction,
-        maxOutputTokens: 2048,
-      },
-    });
-
-    for await (const chunk of stream) {
-      const text = (chunk as { text?: string }).text;
-      if (text) yield text;
+    for await (const chunk of this.llm.streamChat(messages, {
+      maxOutputTokens: 2048,
+    })) {
+      yield chunk;
     }
   }
 
@@ -80,21 +63,18 @@ CONTEXT:
 ${context || '(No relevant context found. Ask the user to upload or process the document.)'}`;
   }
 
-  private buildContents(
+  private buildLlmMessages(
     history: ChatMessage[],
     currentMessage: string,
-  ): string | Array<{ role: string; parts: { text: string }[] }> {
-    if (history.length === 0) {
-      return currentMessage;
-    }
-
-    const messages = [
+    systemInstruction: string,
+  ): Array<{ role: 'system' | 'user' | 'assistant'; content: string }> {
+    return [
+      { role: 'system', content: systemInstruction },
       ...history.map((m) => ({
-        role: m.role === 'user' ? 'user' : 'model' as const,
-        parts: [{ text: m.content }],
+        role: m.role,
+        content: m.content,
       })),
-      { role: 'user' as const, parts: [{ text: currentMessage }] },
+      { role: 'user', content: currentMessage },
     ];
-    return messages;
   }
 }

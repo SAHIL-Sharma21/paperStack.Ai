@@ -68,6 +68,7 @@ export class ChatController {
       documentId,
       dto.conversationId,
     );
+    const conversationIdStr = conversation._id.toString();
 
     const maxHistoryPairs = 10;
     const historyForRag = conversation.messages.slice(-maxHistoryPairs * 2);
@@ -81,7 +82,7 @@ export class ChatController {
     let clientDisconnected = false;
     res.on('close', () => {
       clientDisconnected = true;
-    })
+    });
 
     let fullResponse = '';
 
@@ -99,7 +100,10 @@ export class ChatController {
     } catch (err) {
       console.error('[ChatController] RAG stream error:', err);
       res.write(
-        `data: ${JSON.stringify({ error: 'Failed to generate response' })}\n\n`,
+        `data: ${JSON.stringify({
+          error: 'Failed to generate response',
+          conversationId: conversationIdStr,
+        })}\n\n`,
       );
       res.end();
       return;
@@ -112,7 +116,13 @@ export class ChatController {
         fullResponse,
       );
       if (!clientDisconnected && !res.writableEnded) {
-        res.write(`data: ${JSON.stringify({ done: true, saved: true })}\n\n`);
+        res.write(
+          `data: ${JSON.stringify({
+            done: true,
+            saved: true,
+            conversationId: conversationIdStr,
+          })}\n\n`,
+        );
       }
     } catch (err) {
       console.error('[ChatController] Failed to save conversation:', err);
@@ -122,6 +132,7 @@ export class ChatController {
             done: true,
             saved: false,
             error: 'Failed to persist conversation history',
+            conversationId: conversationIdStr,
           })}\n\n`,
         );
       }
