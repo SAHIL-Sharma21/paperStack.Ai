@@ -5,8 +5,17 @@ const DEFAULT_API_BASE_URL = 'http://localhost:8001/api/v1';
 
 function resolveApiBaseUrl(): string {
   const raw = import.meta.env.VITE_API_BASE_URL;
-  const base =
-    typeof raw === 'string' && raw.trim() !== '' ? raw.trim() : DEFAULT_API_BASE_URL;
+  const trimmed = typeof raw === 'string' ? raw.trim() : '';
+  let base: string;
+  if (trimmed !== '') {
+    base = trimmed;
+  } else if (import.meta.env.DEV) {
+    base = DEFAULT_API_BASE_URL;
+  } else {
+    throw new Error(
+      'VITE_API_BASE_URL is required in non-development builds. Set it to a valid absolute URL (e.g. https://api.example.com/api/v1).',
+    );
+  }
   try {
     return new URL(base).href.replace(/\/$/, '');
   } catch {
