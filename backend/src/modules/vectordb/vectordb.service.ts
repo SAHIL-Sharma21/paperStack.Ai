@@ -187,7 +187,7 @@ export class VectordbService implements OnModuleInit {
     topK = 5,
     filter?: { userId?: string; documentId?: string },
   ) {
-    const vector = Array.from(embedding) as number[];
+    const vector = Array.from(embedding);
     // Collection uses anonymous vectors (vectors: { size, distance }), not named
 
     const result = await this.client.search(COLLECTION_NAME, {

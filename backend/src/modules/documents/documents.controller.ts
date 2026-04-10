@@ -86,7 +86,10 @@ function encodeFilenameRFC5987(normalized: string): string {
 }
 
 /** RFC 6266: both filename and filename* (RFC 5987) for Unicode-capable clients. */
-function buildContentDispositionHeader(originalName: string, inline: boolean): string {
+function buildContentDispositionHeader(
+  originalName: string,
+  inline: boolean,
+): string {
   const normalized = normalizeOriginalFilenameForDisposition(originalName);
   const legacy = buildLegacyAsciiFilename(normalized);
   const encoded = encodeFilenameRFC5987(normalized);

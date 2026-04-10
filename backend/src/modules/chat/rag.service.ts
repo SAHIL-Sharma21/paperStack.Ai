@@ -26,10 +26,7 @@ export class RagService {
   }
 
   private getModel(): string {
-    return this.config.get<string>(
-      'GEMINI_CHAT_MODEL',
-      'gemini-2.0-flash',
-    );
+    return this.config.get<string>('GEMINI_CHAT_MODEL', 'gemini-2.0-flash');
   }
 
   async *streamRagResponse(
@@ -90,7 +87,7 @@ ${context || '(No relevant context found. Ask the user to upload or process the 
 
     const messages = [
       ...history.map((m) => ({
-        role: m.role === 'user' ? 'user' : 'model' as const,
+        role: m.role === 'user' ? 'user' : ('model' as const),
         parts: [{ text: m.content }],
       })),
       { role: 'user' as const, parts: [{ text: currentMessage }] },

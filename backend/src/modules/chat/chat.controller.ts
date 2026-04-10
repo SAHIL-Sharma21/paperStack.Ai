@@ -81,7 +81,7 @@ export class ChatController {
     let clientDisconnected = false;
     res.on('close', () => {
       clientDisconnected = true;
-    })
+    });
 
     let fullResponse = '';
 
@@ -92,7 +92,7 @@ export class ChatController {
         dto.message,
         historyForRag.map((m) => ({ role: m.role, content: m.content })),
       )) {
-        if(clientDisconnected) break;
+        if (clientDisconnected) break;
         fullResponse += chunk;
         res.write(`data: ${JSON.stringify({ text: chunk })}\n\n`);
       }
@@ -144,8 +144,10 @@ export class ChatController {
     const userId = user._id.toString();
     await this.ensureDocumentAccess(userId, documentId);
 
-    const conversations =
-      await this.chatService.getConversationsByDocument(userId, documentId);
+    const conversations = await this.chatService.getConversationsByDocument(
+      userId,
+      documentId,
+    );
 
     return conversations.map((c) => this.toListItemDto(c));
   }
