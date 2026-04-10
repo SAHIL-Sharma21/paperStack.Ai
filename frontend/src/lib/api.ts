@@ -1,8 +1,22 @@
 import { HTTP_METHODS } from './constant';
 import type { AuthResponse, DocumentItem, SearchResponse } from './types';
+const DEFAULT_API_BASE_URL = 'http://localhost:8001/api/v1';
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL;
+
+function resolveApiBaseUrl(): string {
+  const raw = import.meta.env.VITE_API_BASE_URL;
+  const base =
+    typeof raw === 'string' && raw.trim() !== '' ? raw.trim() : DEFAULT_API_BASE_URL;
+  try {
+    return new URL(base).href.replace(/\/$/, '');
+  } catch {
+    throw new Error(
+      `VITE_API_BASE_URL must be a valid absolute URL (e.g. http://localhost:8001/api/v1). Received: ${JSON.stringify(raw)}`,
+    );
+  }
+}
+
+const API_BASE_URL = resolveApiBaseUrl();
 
 type RequestOptions = {
   method?: HTTP_METHODS;
@@ -19,6 +33,8 @@ class ApiError extends Error {
     this.status = status;
   }
 }
+
+type ApiErrorJsonBody = { message?: string | string[] };
 
 function buildUrl(path: string, params?: RequestOptions['params']): string {
   const url = new URL(`${API_BASE_URL}${path}`);
@@ -47,7 +63,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   if (!response.ok) {
     let message = `Request failed with status ${response.status}`;
     try {
-      const errData = (await response.json()) as { message?: string | string[] };
+      const errData = (await response.json()) as ApiErrorJsonBody;
       if (Array.isArray(errData.message)) {
         message = errData.message.join(', ');
       } else if (typeof errData.message === 'string') {
@@ -78,7 +94,7 @@ async function fetchAuthorizedBlob(
   if (!response.ok) {
     let message = `Request failed with status ${response.status}`;
     try {
-      const errData = (await response.json()) as { message?: string[] };
+      const errData = (await response.json()) as ApiErrorJsonBody;
       if (Array.isArray(errData.message)) {
         message = errData.message.join(', ');
       } else if (typeof errData.message === 'string') {

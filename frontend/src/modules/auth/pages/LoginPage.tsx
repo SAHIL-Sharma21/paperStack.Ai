@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import type { SubmitEvent } from 'react';
+import { useState, type SubmitEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { authApi } from '../../../lib/api';
 import { useAppDispatch } from '../../../app/hooks';
