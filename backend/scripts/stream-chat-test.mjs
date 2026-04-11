@@ -76,14 +76,18 @@ function pickDocumentId(docs) {
   );
 }
 
-async function streamChat(token, docId, message) {
+async function streamChat(token, docId, message, conversationId) {
+  const body =
+    conversationId != null && conversationId !== ''
+      ? JSON.stringify({ message, conversationId })
+      : JSON.stringify({ message });
   const res = await fetch(`${API}/documents/${docId}/chat`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ message }),
+    body,
   });
   if (!res.ok) {
     const t = await res.text();
@@ -94,6 +98,7 @@ async function streamChat(token, docId, message) {
   const dec = new TextDecoder();
   let buf = '';
   let full = '';
+  let convId;
   for (;;) {
     const { done, value } = await reader.read();
     if (done) break;
@@ -106,6 +111,9 @@ async function streamChat(token, docId, message) {
         const json = line.slice(5).trim();
         try {
           const obj = JSON.parse(json);
+          if (obj.conversationId != null && obj.conversationId !== '') {
+            convId = obj.conversationId;
+          }
           if (obj.text) {
             process.stdout.write(obj.text);
             full += obj.text;
@@ -120,7 +128,7 @@ async function streamChat(token, docId, message) {
       }
     }
   }
-  return full;
+  return { full, conversationId: convId };
 }
 
 async function main() {
@@ -148,9 +156,16 @@ Set credentials:
     '\n',
   );
 
+  let conversationId;
   for (const q of QUESTIONS) {
     console.log('Q:', q, '\nA:');
-    await streamChat(token, docId, q);
+    const { conversationId: nextConv } = await streamChat(
+      token,
+      docId,
+      q,
+      conversationId,
+    );
+    if (nextConv) conversationId = nextConv;
     console.log('\n\n---\n');
   }
 }

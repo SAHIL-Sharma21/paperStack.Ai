@@ -133,6 +133,41 @@ export type DocumentChatSsePayload = {
   conversationId?: string;
 };
 
+function emitDocumentChatSseBlock(
+  block: string,
+  onPayload: (p: DocumentChatSsePayload) => void,
+): void {
+  for (const line of block.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith('data:')) continue;
+    const json = trimmed.slice(5).trim();
+    if (!json) continue;
+    try {
+      onPayload(JSON.parse(json) as DocumentChatSsePayload);
+    } catch(_) {}
+  }
+}
+
+/** Split on `\n\n`, emit complete blocks; if `terminal`, emit every segment including the tail. */
+function consumeDocumentChatSseBuffer(
+  buffer: string,
+  onPayload: (p: DocumentChatSsePayload) => void,
+  terminal: boolean,
+): string {
+  const chunks = buffer.split('\n\n');
+  if (terminal) {
+    for (const block of chunks) {
+      emitDocumentChatSseBlock(block, onPayload);
+    }
+    return '';
+  }
+  const rest = chunks.pop() ?? '';
+  for (const block of chunks) {
+    emitDocumentChatSseBlock(block, onPayload);
+  }
+  return rest;
+}
+
 function authHeaders(): Record<string, string> {
   const token = localStorage.getItem('paperstack_token');
   return token ? { Authorization: `Bearer ${token}` } : {};
@@ -184,23 +219,13 @@ export async function streamDocumentChat(
   let buffer = '';
   for (;;) {
     const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const chunks = buffer.split('\n\n');
-    buffer = chunks.pop() ?? '';
-    for (const block of chunks) {
-      for (const line of block.split('\n')) {
-        const trimmed = line.trim();
-        if (!trimmed.startsWith('data:')) continue;
-        const json = trimmed.slice(5).trim();
-        if (!json) continue;
-        try {
-          options.onPayload(JSON.parse(json) as DocumentChatSsePayload);
-        } catch {
-          /* ignore malformed chunk */
-        }
-      }
+    if (done) {
+      buffer += decoder.decode(undefined, { stream: false });
+      consumeDocumentChatSseBuffer(buffer, options.onPayload, true);
+      return;
     }
+    buffer += decoder.decode(value, { stream: true });
+    buffer = consumeDocumentChatSseBuffer(buffer, options.onPayload, false);
   }
 }
 

@@ -8,6 +8,27 @@ export interface GroqChatCompletionNonStreamBody {
   max_tokens?: number;
 }
 
+function* sseLinesToContentDeltas(
+  lines: string[],
+): Generator<string, boolean, unknown> {
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith('data:')) continue;
+    const data = trimmed.slice(5).trim();
+    if (data === '[DONE]') return true;
+    try {
+      const json = JSON.parse(data) as {
+        choices?: Array<{ delta?: { content?: string } }>;
+      };
+      const content = json.choices?.[0]?.delta?.content;
+      if (content) yield content;
+    } catch {
+      /* ignore malformed chunk */
+    }
+  }
+  return false;
+}
+
 async function* parseSseTextDeltas(
   body: ReadableStream<Uint8Array> | null,
 ): AsyncGenerator<string, void, unknown> {
@@ -17,23 +38,17 @@ async function* parseSseTextDeltas(
   let buffer = '';
   for (;;) {
     const { done, value } = await reader.read();
-    if (done) break;
+    if (done) {
+      buffer += decoder.decode(undefined, { stream: false });
+      const ended = yield* sseLinesToContentDeltas(buffer.split('\n'));
+      if (ended) return;
+      return;
+    }
     buffer += decoder.decode(value, { stream: true });
     const parts = buffer.split('\n');
     buffer = parts.pop() ?? '';
-    for (const line of parts) {
-      const trimmed = line.trim();
-      if (!trimmed.startsWith('data:')) continue;
-      const data = trimmed.slice(5).trim();
-      if (data === '[DONE]') return;
-      try {
-        const json = JSON.parse(data) as {
-          choices?: Array<{ delta?: { content?: string } }>;
-        };
-        const content = json.choices?.[0]?.delta?.content;
-        if (content) yield content;
-      } catch(_) {}
-    }
+    const ended = yield* sseLinesToContentDeltas(parts);
+    if (ended) return;
   }
 }
 

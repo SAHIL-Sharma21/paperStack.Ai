@@ -26,6 +26,20 @@ export function DocumentChatPage() {
   const skipHydrateRef = useRef(false);
   const hydratedRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
+  const documentIdRef = useRef(documentId);
+  documentIdRef.current = documentId;
+
+  useEffect(() => {
+    skipHydrateRef.current = false;
+    hydratedRef.current = false;
+    abortRef.current?.abort();
+    abortRef.current = null;
+    setBusy(false);
+    setMessages([]);
+    setConversationId(undefined);
+    setStreamingText('');
+    setError(null);
+  }, [documentId]);
 
   const documentsQuery = useQuery({
     queryKey: ['documents'],
@@ -51,10 +65,19 @@ export function DocumentChatPage() {
     }
     hydratedRef.current = true;
     const latestId = conversationsQuery.data[0].id;
+    const runForDocumentId = documentId;
     setConversationId(latestId);
+
+    let cancelled = false;
     void chatApi.getConversation(documentId, latestId).then((c) => {
+      if (cancelled) return;
+      if (documentIdRef.current !== runForDocumentId) return;
       setMessages(c.messages);
     });
+
+    return () => {
+      cancelled = true;
+    };
   }, [documentId, conversationsQuery.data]);
 
   const startNewConversation = useCallback(() => {
@@ -83,6 +106,7 @@ export function DocumentChatPage() {
     abortRef.current = ac;
 
     let assistantAcc = '';
+    const sendForDocumentId = documentId;
 
     try {
       await streamDocumentChat(
@@ -91,6 +115,7 @@ export function DocumentChatPage() {
         {
           signal: ac.signal,
           onPayload: (p) => {
+            if (documentIdRef.current !== sendForDocumentId) return;
             if (typeof p.conversationId === 'string' && p.conversationId) {
               setConversationId(p.conversationId);
             }

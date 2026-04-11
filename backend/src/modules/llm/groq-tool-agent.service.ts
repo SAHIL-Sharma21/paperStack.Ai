@@ -136,10 +136,10 @@ export class GroqToolAgentService implements LlmToolCallingPort {
         const functionName = tool.function.name;
         let functionArgs: Record<string, unknown> = {};
         try {
-          functionArgs = JSON.parse(tool.function.arguments) as Record<
-            string,
-            unknown
-          >;
+          const parsed = JSON.parse(tool.function.arguments);
+          if(isRecord(parsed)){
+            functionArgs = parsed;
+          }
         } catch {
           functionArgs = {};
         }
