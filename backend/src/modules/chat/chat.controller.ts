@@ -84,6 +84,14 @@ export class ChatController {
       clientDisconnected = true;
     });
 
+    if (!res.writableEnded) {
+      res.write(
+        `data: ${JSON.stringify({
+          conversationId: conversationIdStr,
+        })}\n\n`,
+      );
+    }
+
     let fullResponse = '';
 
     try {

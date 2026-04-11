@@ -68,7 +68,6 @@ export function DocumentChatPage() {
     const runForDocumentId = documentId;
     const runForConversationId = latestId;
     const requestId = ++hydrateRequestIdRef.current;
-    setConversationId(latestId);
 
     const ac = new AbortController();
     void chatApi
@@ -78,6 +77,7 @@ export function DocumentChatPage() {
         if (documentIdRef.current !== runForDocumentId) return;
         if (hydrateRequestIdRef.current !== requestId) return;
         if (c.id !== runForConversationId) return;
+        setConversationId(c.id);
         setMessages(c.messages);
         hydratedRef.current = true;
       })
@@ -90,6 +90,7 @@ export function DocumentChatPage() {
           (typeof DOMException !== 'undefined' && e instanceof DOMException && e.name === 'AbortError');
         if (aborted) return;
         hydratedRef.current = false;
+        setConversationId(undefined);
         const msg =
           e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'Failed to load conversation';
         setError(msg);
