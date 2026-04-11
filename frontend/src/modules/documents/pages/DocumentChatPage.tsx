@@ -28,6 +28,7 @@ export function DocumentChatPage() {
   const abortRef = useRef<AbortController | null>(null);
   const documentIdRef = useRef(documentId);
   documentIdRef.current = documentId;
+  const hydrateRequestIdRef = useRef(0);
 
   useEffect(() => {
     skipHydrateRef.current = false;
@@ -63,20 +64,39 @@ export function DocumentChatPage() {
     ) {
       return;
     }
-    hydratedRef.current = true;
     const latestId = conversationsQuery.data[0].id;
     const runForDocumentId = documentId;
+    const runForConversationId = latestId;
+    const requestId = ++hydrateRequestIdRef.current;
     setConversationId(latestId);
 
-    let cancelled = false;
-    void chatApi.getConversation(documentId, latestId).then((c) => {
-      if (cancelled) return;
-      if (documentIdRef.current !== runForDocumentId) return;
-      setMessages(c.messages);
-    });
+    const ac = new AbortController();
+    void chatApi
+      .getConversation(documentId, latestId, { signal: ac.signal })
+      .then((c) => {
+        if (ac.signal.aborted) return;
+        if (documentIdRef.current !== runForDocumentId) return;
+        if (hydrateRequestIdRef.current !== requestId) return;
+        if (c.id !== runForConversationId) return;
+        setMessages(c.messages);
+        hydratedRef.current = true;
+      })
+      .catch((e) => {
+        if (ac.signal.aborted) return;
+        if (documentIdRef.current !== runForDocumentId) return;
+        if (hydrateRequestIdRef.current !== requestId) return;
+        const aborted =
+          (e instanceof Error && e.name === 'AbortError') ||
+          (typeof DOMException !== 'undefined' && e instanceof DOMException && e.name === 'AbortError');
+        if (aborted) return;
+        hydratedRef.current = false;
+        const msg =
+          e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'Failed to load conversation';
+        setError(msg);
+      });
 
     return () => {
-      cancelled = true;
+      ac.abort();
     };
   }, [documentId, conversationsQuery.data]);
 
@@ -115,6 +135,7 @@ export function DocumentChatPage() {
         {
           signal: ac.signal,
           onPayload: (p) => {
+            if (abortRef.current !== ac) return;
             if (documentIdRef.current !== sendForDocumentId) return;
             if (typeof p.conversationId === 'string' && p.conversationId) {
               setConversationId(p.conversationId);
@@ -138,6 +159,7 @@ export function DocumentChatPage() {
         },
       );
     } catch (e) {
+      if (abortRef.current !== ac) return;
       if (e instanceof Error && e.name === 'AbortError') {
         return;
       }
@@ -145,8 +167,10 @@ export function DocumentChatPage() {
         e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'Request failed';
       setError(msg);
     } finally {
-      setBusy(false);
-      abortRef.current = null;
+      if (abortRef.current === ac) {
+        abortRef.current = null;
+        setBusy(false);
+      }
     }
   }, [documentId, input, busy, doc?.status, conversationId, queryClient]);
 

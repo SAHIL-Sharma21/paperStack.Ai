@@ -6,6 +6,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import type { LlmChatPort } from '../llm/llm-chat.port';
 import { LLM_CHAT_PORT } from '../llm/llm.tokens';
+import type { LlmChatMessage } from '../llm/llm.types';
 import { EmbeddingsService } from '../embeddings/embeddings.service';
 import { VectordbService } from '../vectordb/vectordb.service';
 import type { ChatMessage } from './schemas/conversation.schema';
@@ -67,13 +68,15 @@ ${context || '(No relevant context found. Ask the user to upload or process the 
     history: ChatMessage[],
     currentMessage: string,
     systemInstruction: string,
-  ): Array<{ role: 'system' | 'user' | 'assistant'; content: string }> {
+  ): LlmChatMessage[] {
     return [
       { role: 'system', content: systemInstruction },
-      ...history.map((m) => ({
-        role: m.role,
-        content: m.content,
-      })),
+      ...history.map(
+        (m): LlmChatMessage => ({
+          role: m.role,
+          content: m.content,
+        }),
+      ),
       { role: 'user', content: currentMessage },
     ];
   }

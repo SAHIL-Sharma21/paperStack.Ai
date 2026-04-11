@@ -38,6 +38,7 @@ type RequestOptions = {
   body?: BodyInit | null;
   headers?: Record<string, string>;
   params?: Record<string, string | number | undefined>;
+  signal?: AbortSignal;
 };
 
 class ApiError extends Error {
@@ -73,6 +74,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
       ...(options.headers ?? {}),
     },
     body: options.body ?? null,
+    ...(options.signal ? { signal: options.signal } : {}),
   });
 
   if (!response.ok) {
@@ -237,9 +239,11 @@ export const chatApi = {
   getConversation(
     documentId: string,
     conversationId: string,
+    opts?: { signal?: AbortSignal },
   ): Promise<ConversationDetail> {
     return request<ConversationDetail>(
       `/documents/${documentId}/conversations/${conversationId}`,
+      opts?.signal ? { signal: opts.signal } : {},
     );
   },
 };
