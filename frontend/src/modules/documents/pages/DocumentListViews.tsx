@@ -1,4 +1,4 @@
-import { Download, Eye, FileText, Trash2 } from 'lucide-react';
+import { Download, Eye, FileText, MessageSquare, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Button, buttonVariants } from '../../../components/ui/button';
 import { Badge } from '../../../components/ui/badge';
@@ -6,6 +6,7 @@ import { LazyDocumentThumbnail } from '../../../components/LazyDocumentThumbnail
 import { cn } from '../../../lib/utils';
 import type { DocumentItem } from '../../../lib/types';
 import { formatBytes, formatShortDate, statusVariant } from './helper';
+import { COMPLETED_STATUS } from './constants';
 
 export function StatCard({
   label,
@@ -92,6 +93,19 @@ export function DocumentTableRow({
       </td>
       <td className="px-3 py-3 align-middle">
         <div className="flex flex-wrap items-center justify-end gap-1">
+          {doc.status === COMPLETED_STATUS ? (
+            <Link
+              to={`/documents/${doc.id}/chat`}
+              className={cn(
+                buttonVariants({ variant: 'ghost', size: 'sm' }),
+                'text-zinc-300',
+              )}
+              title="Chat with document"
+            >
+              <MessageSquare className="h-4 w-4" />
+              <span className="sr-only">Chat</span>
+            </Link>
+          ) : null}
           <Button
             type="button"
             variant="ghost"
@@ -168,6 +182,15 @@ export function DocumentMobileCard({
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
+            {doc.status === COMPLETED_STATUS ? (
+              <Link
+                to={`/documents/${doc.id}/chat`}
+                className={cn(buttonVariants({ variant: 'secondary', size: 'sm' }), 'gap-1.5')}
+              >
+                <MessageSquare className="h-4 w-4" />
+                Chat
+              </Link>
+            ) : null}
             <Button type="button" variant="secondary" size="sm" className="gap-1.5" onClick={onPreview}>
               <Eye className="h-4 w-4" />
               Preview

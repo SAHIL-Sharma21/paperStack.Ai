@@ -4,6 +4,7 @@ import { ProtectedRoute } from '../components/ProtectedRoute';
 import { LoginPage } from '../modules/auth/pages/LoginPage';
 import { SignupPage } from '../modules/auth/pages/SignupPage';
 import { HomePage } from '../modules/home/pages/HomePage';
+import { DocumentChatPage } from '../modules/documents/pages/DocumentChatPage';
 import { DocumentsPage } from '../modules/documents/pages/DocumentsPage';
 import { SearchPage } from '../modules/search/pages/SearchPage';
 
@@ -14,6 +15,14 @@ export function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
+        <Route
+          path="/documents/:documentId/chat"
+          element={
+            <ProtectedRoute>
+              <DocumentChatPage />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/documents"
           element={

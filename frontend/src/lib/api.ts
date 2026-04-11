@@ -1,5 +1,11 @@
 import { HTTP_METHODS } from './constant';
-import type { AuthResponse, DocumentItem, SearchResponse } from './types';
+import type {
+  AuthResponse,
+  ConversationDetail,
+  ConversationListItem,
+  DocumentItem,
+  SearchResponse,
+} from './types';
 const DEFAULT_API_BASE_URL = 'http://localhost:8001/api/v1';
 
 
@@ -32,6 +38,7 @@ type RequestOptions = {
   body?: BodyInit | null;
   headers?: Record<string, string>;
   params?: Record<string, string | number | undefined>;
+  signal?: AbortSignal;
 };
 
 class ApiError extends Error {
@@ -67,6 +74,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
       ...(options.headers ?? {}),
     },
     body: options.body ?? null,
+    ...(options.signal ? { signal: options.signal } : {}),
   });
 
   if (!response.ok) {
@@ -117,6 +125,128 @@ async function fetchAuthorizedBlob(
 
   return response.blob();
 }
+
+/** SSE payloads from POST /documents/:id/chat */
+export type DocumentChatSsePayload = {
+  text?: string;
+  error?: string;
+  done?: boolean;
+  saved?: boolean;
+  conversationId?: string;
+};
+
+function emitDocumentChatSseBlock(
+  block: string,
+  onPayload: (p: DocumentChatSsePayload) => void,
+): void {
+  for (const line of block.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith('data:')) continue;
+    const json = trimmed.slice(5).trim();
+    if (!json) continue;
+    try {
+      onPayload(JSON.parse(json) as DocumentChatSsePayload);
+    } catch(_) {}
+  }
+}
+
+/** Split on `\n\n`, emit complete blocks; if `terminal`, emit every segment including the tail. */
+function consumeDocumentChatSseBuffer(
+  buffer: string,
+  onPayload: (p: DocumentChatSsePayload) => void,
+  terminal: boolean,
+): string {
+  const chunks = buffer.split('\n\n');
+  if (terminal) {
+    for (const block of chunks) {
+      emitDocumentChatSseBlock(block, onPayload);
+    }
+    return '';
+  }
+  const rest = chunks.pop() ?? '';
+  for (const block of chunks) {
+    emitDocumentChatSseBlock(block, onPayload);
+  }
+  return rest;
+}
+
+function authHeaders(): Record<string, string> {
+  const token = localStorage.getItem('paperstack_token');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+/**
+ * Stream RAG chat; calls `onPayload` for each `data: {...}` line until the stream ends.
+ */
+export async function streamDocumentChat(
+  documentId: string,
+  body: { message: string; conversationId?: string },
+  options: {
+    onPayload: (p: DocumentChatSsePayload) => void;
+    signal?: AbortSignal;
+  },
+): Promise<void> {
+  const response = await fetch(buildUrl(`/documents/${documentId}/chat`), {
+    method: HTTP_METHODS.POST,
+    credentials: 'include',
+    headers: {
+      ...authHeaders(),
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+    signal: options.signal,
+  });
+
+  if (!response.ok) {
+    let message = `Request failed with status ${response.status}`;
+    try {
+      const errData = (await response.json()) as ApiErrorJsonBody;
+      if (Array.isArray(errData.message)) {
+        message = errData.message.join(', ');
+      } else if (typeof errData.message === 'string') {
+        message = errData.message;
+      }
+    } catch {
+      message = `Request failed with status ${response.status}`;
+    }
+    throw new ApiError(message, response.status);
+  }
+
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new ApiError('No response body', 500);
+  }
+
+  const decoder = new TextDecoder();
+  let buffer = '';
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) {
+      buffer += decoder.decode(undefined, { stream: false });
+      consumeDocumentChatSseBuffer(buffer, options.onPayload, true);
+      return;
+    }
+    buffer += decoder.decode(value, { stream: true });
+    buffer = consumeDocumentChatSseBuffer(buffer, options.onPayload, false);
+  }
+}
+
+export const chatApi = {
+  listConversations(documentId: string): Promise<ConversationListItem[]> {
+    return request<ConversationListItem[]>(`/documents/${documentId}/conversations`);
+  },
+
+  getConversation(
+    documentId: string,
+    conversationId: string,
+    opts?: { signal?: AbortSignal },
+  ): Promise<ConversationDetail> {
+    return request<ConversationDetail>(
+      `/documents/${documentId}/conversations/${conversationId}`,
+      opts?.signal ? { signal: opts.signal } : {},
+    );
+  },
+};
 
 export const authApi = {
   login(emailOrUsername: string, password: string): Promise<AuthResponse> {
@@ -182,3 +312,5 @@ export const documentsApi = {
     }
   },
 };
+
+export { ApiError };

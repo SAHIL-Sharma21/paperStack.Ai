@@ -31,3 +31,24 @@ export type SearchResult = {
 export type SearchResponse = {
   results: SearchResult[];
 };
+
+export type ChatTurn = {
+  role: 'user' | 'assistant';
+  content: string;
+};
+
+export type ConversationListItem = {
+  id: string;
+  documentId: string;
+  messageCount: number;
+  lastMessageAt?: string;
+  createdAt?: string;
+};
+
+export type ConversationDetail = {
+  id: string;
+  documentId: string;
+  messages: ChatTurn[];
+  createdAt?: string;
+  updatedAt?: string;
+};

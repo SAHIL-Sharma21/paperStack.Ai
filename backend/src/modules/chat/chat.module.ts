@@ -15,6 +15,7 @@ import {
 import { DocumentsModule } from '../documents/documents.module';
 import { EmbeddingsModule } from '../embeddings/embeddings.module';
 import { VectordbModule } from '../vectordb/vectordb.module';
+import { LlmModule } from '../llm/llm.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { VectordbModule } from '../vectordb/vectordb.module';
     forwardRef(() => DocumentsModule),
     EmbeddingsModule,
     VectordbModule,
+    LlmModule,
   ],
   controllers: [ChatController],
   providers: [ChatService, RagService],
