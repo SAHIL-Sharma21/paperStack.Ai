@@ -37,6 +37,7 @@ export function DocumentChatPage() {
     abortRef.current = null;
     setBusy(false);
     setMessages([]);
+    setInput('');
     setConversationId(undefined);
     setStreamingText('');
     setError(null);
