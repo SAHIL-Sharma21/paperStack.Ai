@@ -19,14 +19,7 @@ export class RagService {
     @Inject(LLM_CHAT_PORT) private readonly llm: LlmChatPort,
     private embeddingsService: EmbeddingsService,
     private vectordbService: VectordbService,
-  ) {
-    const apiKey = this.config.getOrThrow<string>('GEMINI_API_KEY');
-    this.geminiClient = new GoogleGenAI({ apiKey });
-  }
-
-  private getModel(): string {
-    return this.config.get<string>('GEMINI_CHAT_MODEL', 'gemini-2.0-flash');
-  }
+  ) {}
 
   async *streamRagResponse(
     userId: string,
@@ -50,7 +43,6 @@ export class RagService {
       .join('\n\n---\n\n');
 
     const systemInstruction = this.buildSystemPrompt(context);
-
     const messages = this.buildLlmMessages(history, query, systemInstruction);
 
     for await (const chunk of this.llm.streamChat(messages, {
@@ -60,7 +52,6 @@ export class RagService {
     }
   }
 
-  //TODO: Add a prompt in the new files and import here.
   private buildSystemPrompt(context: string): string {
     return `You are a helpful assistant that answers questions based on the provided document context.
 
@@ -74,17 +65,17 @@ ${context || '(No relevant context found. Ask the user to upload or process the 
   private buildLlmMessages(
     history: ChatMessage[],
     currentMessage: string,
-  ): string | Array<{ role: string; parts: { text: string }[] }> {
-    if (history.length === 0) {
-      return currentMessage;
-    }
-
-    const messages = [
-      ...history.map((m) => ({
-        role: m.role === 'user' ? 'user' : ('model' as const),
-        parts: [{ text: m.content }],
-      })),
-      { role: 'user' as const, parts: [{ text: currentMessage }] },
+    systemInstruction: string,
+  ): LlmChatMessage[] {
+    return [
+      { role: 'system', content: systemInstruction },
+      ...history.map(
+        (m): LlmChatMessage => ({
+          role: m.role,
+          content: m.content,
+        }),
+      ),
+      { role: 'user', content: currentMessage },
     ];
   }
 }
