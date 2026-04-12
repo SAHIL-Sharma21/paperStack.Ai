@@ -89,6 +89,19 @@ export class ChatService {
     });
   }
 
+  async deleteConversation(
+    conversationId: string,
+    userId: string,
+    documentId: string,
+  ): Promise<boolean> {
+    const res = await this.conversationModel.findOneAndDelete({
+      _id: new Types.ObjectId(conversationId),
+      userId: new Types.ObjectId(userId),
+      documentId: new Types.ObjectId(documentId),
+    });
+    return res != null;
+  }
+
   async deleteConversationsForDocument(
     userId: string,
     documentId: string,
