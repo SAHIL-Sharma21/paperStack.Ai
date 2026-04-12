@@ -221,11 +221,22 @@ export function DocumentChatPage() {
         setConversationId(c.id);
         setMessages(c.messages);
       } catch (e) {
+        if (documentIdRef.current !== runForDocumentId) return;
+        if (conversationSwitchGenerationRef.current !== loadGeneration) return;
+        const aborted =
+          (e instanceof Error && e.name === 'AbortError') ||
+          (typeof DOMException !== 'undefined' && e instanceof DOMException && e.name === 'AbortError');
+        if (aborted) return;
         const msg =
           e instanceof ApiError ? e.message : e instanceof Error ? e.message : 'Failed to open chat';
         setError(msg);
       } finally {
-        setLoadingConversationId(null);
+        if (
+          documentIdRef.current === runForDocumentId &&
+          conversationSwitchGenerationRef.current === loadGeneration
+        ) {
+          setLoadingConversationId(null);
+        }
       }
     },
     [documentId, busy],

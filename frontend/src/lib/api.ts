@@ -161,7 +161,8 @@ function feedDocumentChatSse(
   onPayload: (p: DocumentChatSsePayload) => void,
   streamEnded: boolean,
 ): void {
-  state.raw += chunk.replace(/\r\n/g, '\n');
+  state.raw += chunk;
+  state.raw = state.raw.replace(/\r\n/g, '\n');
   for (;;) {
     const sep = state.raw.indexOf('\n\n');
     if (sep === -1) break;
@@ -170,7 +171,7 @@ function feedDocumentChatSse(
     emitDocumentChatSseBlock(eventBlock, onPayload);
   }
   if (streamEnded && state.raw.length > 0) {
-    emitDocumentChatSseBlock(state.raw, onPayload);
+    emitDocumentChatSseBlock(state.raw.replace(/\r\n/g, '\n'), onPayload);
     state.raw = '';
   }
 }
