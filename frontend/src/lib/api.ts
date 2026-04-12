@@ -141,33 +141,39 @@ function emitDocumentChatSseBlock(
 ): void {
   for (const line of block.split('\n')) {
     const trimmed = line.trim();
-    if (!trimmed.startsWith('data:')) continue;
-    const json = trimmed.slice(5).trim();
+    if (!trimmed.toLowerCase().startsWith('data:')) continue;
+    const json = trimmed.slice(5).trimStart();
     if (!json) continue;
     try {
       onPayload(JSON.parse(json) as DocumentChatSsePayload);
-    } catch(_) {}
+    } catch {
+      /* ignore malformed SSE JSON (e.g. chunk split mid-line) */
+    }
   }
 }
 
-/** Split on `\n\n`, emit complete blocks; if `terminal`, emit every segment including the tail. */
-function consumeDocumentChatSseBuffer(
-  buffer: string,
+type DocumentChatSseBuffer = { raw: string };
+
+/** Accumulate bytes, emit each SSE event (blank-line delimited); on stream end flush any trailing bytes. */
+function feedDocumentChatSse(
+  state: DocumentChatSseBuffer,
+  chunk: string,
   onPayload: (p: DocumentChatSsePayload) => void,
-  terminal: boolean,
-): string {
-  const chunks = buffer.split('\n\n');
-  if (terminal) {
-    for (const block of chunks) {
-      emitDocumentChatSseBlock(block, onPayload);
-    }
-    return '';
+  streamEnded: boolean,
+): void {
+  state.raw += chunk;
+  state.raw = state.raw.replace(/\r\n/g, '\n');
+  for (;;) {
+    const sep = state.raw.indexOf('\n\n');
+    if (sep === -1) break;
+    const eventBlock = state.raw.slice(0, sep);
+    state.raw = state.raw.slice(sep + 2);
+    emitDocumentChatSseBlock(eventBlock, onPayload);
   }
-  const rest = chunks.pop() ?? '';
-  for (const block of chunks) {
-    emitDocumentChatSseBlock(block, onPayload);
+  if (streamEnded && state.raw.length > 0) {
+    emitDocumentChatSseBlock(state.raw.replace(/\r\n/g, '\n'), onPayload);
+    state.raw = '';
   }
-  return rest;
 }
 
 function authHeaders(): Record<string, string> {
@@ -218,16 +224,15 @@ export async function streamDocumentChat(
   }
 
   const decoder = new TextDecoder();
-  let buffer = '';
+  const sse: DocumentChatSseBuffer = { raw: '' };
   for (;;) {
     const { done, value } = await reader.read();
     if (done) {
-      buffer += decoder.decode(undefined, { stream: false });
-      consumeDocumentChatSseBuffer(buffer, options.onPayload, true);
+      const tail = decoder.decode(undefined, { stream: false });
+      feedDocumentChatSse(sse, tail, options.onPayload, true);
       return;
     }
-    buffer += decoder.decode(value, { stream: true });
-    buffer = consumeDocumentChatSseBuffer(buffer, options.onPayload, false);
+    feedDocumentChatSse(sse, decoder.decode(value, { stream: true }), options.onPayload, false);
   }
 }
 
@@ -244,6 +249,16 @@ export const chatApi = {
     return request<ConversationDetail>(
       `/documents/${documentId}/conversations/${conversationId}`,
       opts?.signal ? { signal: opts.signal } : {},
+    );
+  },
+
+  deleteConversation(
+    documentId: string,
+    conversationId: string,
+  ): Promise<{ deleted: true }> {
+    return request<{ deleted: true }>(
+      `/documents/${documentId}/conversations/${conversationId}`,
+      { method: HTTP_METHODS.DELETE },
     );
   },
 };

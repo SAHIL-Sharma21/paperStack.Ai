@@ -1,5 +1,5 @@
 import { Flame, FolderOpen, Search, UploadCloud } from 'lucide-react';
-import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
+import { Link, NavLink, Outlet, useLocation, useMatch } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAppDispatch, useAppSelector } from '../app/hooks';
 import { logout } from '../modules/auth/store/authSlice';
@@ -11,6 +11,7 @@ export function Layout() {
   const dispatch = useAppDispatch();
   const queryClient = useQueryClient();
   const location = useLocation();
+  const isDocumentChatRoute = Boolean(useMatch('/documents/:documentId/chat'));
   const user = useAppSelector(selectCurrentUser);
   const isAuthenticated = useAppSelector(selectIsAuthenticated);
 
@@ -29,8 +30,20 @@ export function Layout() {
 
 
   return (
-    <div className="mx-auto min-h-screen w-full max-w-6xl px-4 py-6 md:px-8">
-      <header className="sticky top-4 z-50 mb-6 rounded-2xl border border-zinc-800 bg-zinc-900/70 px-4 py-3 backdrop-blur">
+    <div
+      className={cn(
+        'mx-auto w-full px-4 md:px-8',
+        isDocumentChatRoute
+          ? 'max-w-none flex h-dvh max-h-dvh min-h-0 flex-col overflow-hidden py-3 sm:px-6 lg:px-10 md:py-4'
+          : 'max-w-6xl min-h-screen py-6',
+      )}
+    >
+      <header
+        className={cn(
+          'z-50 rounded-2xl border border-zinc-800 bg-zinc-900/70 px-4 py-3 backdrop-blur',
+          isDocumentChatRoute ? 'mb-3 shrink-0' : 'sticky top-4 mb-6',
+        )}
+      >
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <Link to="/" className="inline-flex items-center gap-2 text-lg font-semibold text-zinc-100">
             <Flame className="h-5 w-5 text-orange-300" />
@@ -67,7 +80,11 @@ export function Layout() {
         </div>
       </header>
 
-      <main className="space-y-4">
+      <main
+        className={cn(
+          isDocumentChatRoute ? 'flex min-h-0 flex-1 flex-col overflow-hidden' : 'space-y-4',
+        )}
+      >
         <Outlet />
       </main>
     </div>

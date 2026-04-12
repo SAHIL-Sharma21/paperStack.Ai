@@ -14,6 +14,8 @@ export class ConversationDto {
 export class ConversationListItemDto {
   id: string;
   documentId: string;
+  /** First user message, collapsed whitespace, truncated (list preview). */
+  title: string;
   messageCount: number;
   lastMessageAt?: Date;
   createdAt?: Date;

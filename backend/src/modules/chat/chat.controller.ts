@@ -7,6 +7,7 @@ import {
   Controller,
   Get,
   Post,
+  Delete,
   Body,
   Param,
   UseGuards,
@@ -196,6 +197,30 @@ export class ChatController {
     return this.toConversationDto(conv);
   }
 
+  /**
+   * Delete a conversation for this document.
+   * DELETE /documents/:documentId/conversations/:conversationId
+   */
+  @Delete(':documentId/conversations/:conversationId')
+  async deleteConversation(
+    @Param('documentId', ParseObjectIdPipe) documentId: string,
+    @Param('conversationId', ParseObjectIdPipe) conversationId: string,
+    @CurrentUser() user: UserDocument & { _id: { toString(): string } },
+  ): Promise<{ deleted: true }> {
+    const userId = user._id.toString();
+    await this.ensureDocumentAccess(userId, documentId);
+
+    const ok = await this.chatService.deleteConversation(
+      conversationId,
+      userId,
+      documentId,
+    );
+    if (!ok) {
+      throw new NotFoundException('Conversation not found');
+    }
+    return { deleted: true };
+  }
+
   private async ensureDocumentAccess(
     userId: string,
     documentId: string,
@@ -210,17 +235,36 @@ export class ChatController {
   private toListItemDto(conv: {
     _id: { toString(): string };
     documentId: { toString(): string };
-    messages: unknown[];
+    messages: Array<{ role: string; content: string }>;
     updatedAt?: Date;
     createdAt?: Date;
   }): ConversationListItemDto {
     const dto = new ConversationListItemDto();
     dto.id = conv._id.toString();
     dto.documentId = conv.documentId.toString();
+    dto.title = ChatController.inferConversationListTitle(conv.messages ?? []);
     dto.messageCount = conv.messages?.length ?? 0;
     dto.lastMessageAt = conv.updatedAt;
     dto.createdAt = conv.createdAt;
     return dto;
+  }
+
+  /** Preview line for sidebar: first user turn, single line, max length (no LLM — cheap & stable). */
+  static inferConversationListTitle(
+    messages: Array<{ role: string; content: string }>,
+  ): string {
+    const firstUser = messages.find(
+      (m) =>
+        m.role === 'user' &&
+        typeof m.content === 'string' &&
+        m.content.trim().length > 0,
+    );
+    if (!firstUser) {
+      return 'New conversation';
+    }
+    const oneLine = firstUser.content.replace(/\s+/g, ' ').trim();
+    const max = 72;
+    return oneLine.length <= max ? oneLine : `${oneLine.slice(0, max - 1)}…`;
   }
 
   private toConversationDto(conv: {

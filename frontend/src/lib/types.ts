@@ -40,6 +40,8 @@ export type ChatTurn = {
 export type ConversationListItem = {
   id: string;
   documentId: string;
+  /** First user message preview from API (for sidebar labels). */
+  title?: string;
   messageCount: number;
   lastMessageAt?: string;
   createdAt?: string;
