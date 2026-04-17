@@ -1,0 +1,58 @@
+FROM node:22-bookworm-slim AS base
+
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    python3 \
+    make \
+    g++ \
+  && rm -rf /var/lib/apt/lists/* \
+  && corepack enable
+
+WORKDIR /app
+
+FROM base AS deps
+
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+
+FROM deps AS build
+
+COPY nest-cli.json tsconfig.json tsconfig.build.json ./
+COPY src ./src
+RUN pnpm build
+
+FROM base AS prod-deps
+
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile --prod
+
+FROM node:22-bookworm-slim AS runtime-base
+
+ENV NODE_ENV=production
+ENV PORT=8001
+ENV UPLOAD_DIR=/app/uploads
+
+WORKDIR /app
+
+COPY --from=prod-deps /pnpm /pnpm
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+
+COPY --from=prod-deps /app/node_modules ./node_modules
+COPY --from=build /app/dist ./dist
+COPY package.json ./
+
+RUN mkdir -p /app/uploads && chown -R node:node /app
+
+USER node
+
+FROM runtime-base AS api
+EXPOSE 8001
+CMD ["node", "dist/main"]
+
+FROM runtime-base AS consumer
+CMD ["node", "dist/consumer/main"]
