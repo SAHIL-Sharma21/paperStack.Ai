@@ -2,23 +2,19 @@ services:
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
     container_name: paperstack-zookeeper
+    restart: unless-stopped
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
-    ports:
-      - '2182:2181'
-    healthcheck:
-      test: ['CMD', 'nc', '-z', 'localhost', '2181']
-      interval: 5s
-      timeout: 5s
-      retries: 5
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
 
   kafka:
     image: confluentinc/cp-kafka:7.5.0
     container_name: paperstack-kafka
+    restart: unless-stopped
     depends_on:
-      zookeeper:
-        condition: service_healthy
+      - zookeeper
     ports:
       - '${KAFKA_HOST_PORT:-19092}:9092'
     environment:
@@ -29,73 +25,30 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-    healthcheck:
-      test: ['CMD', 'kafka-topics', '--bootstrap-server', 'localhost:29092', '--list']
-      interval: 10s
-      timeout: 10s
-      retries: 12
-
-  mongo:
-    image: mongo:7.0
-    container_name: paperstack-mongo
-    restart: unless-stopped
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-paperstack_admin}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-change-me-mongo-password}
     volumes:
-      - mongo_data:/data/db
-    healthcheck:
-      test:
-        [
-          'CMD',
-          'mongosh',
-          '--quiet',
-          '--username',
-          '${MONGO_INITDB_ROOT_USERNAME:-paperstack_admin}',
-          '--password',
-          '${MONGO_INITDB_ROOT_PASSWORD:-change-me-mongo-password}',
-          '--authenticationDatabase',
-          'admin',
-          '--eval',
-          'db.adminCommand("ping").ok',
-        ]
-      interval: 10s
-      timeout: 10s
-      retries: 10
-
-  qdrant:
-    image: qdrant/qdrant:v1.13.5
-    container_name: paperstack-qdrant
-    restart: unless-stopped
-    volumes:
-      - qdrant_data:/qdrant/storage
+      - kafka_data:/var/lib/kafka/data
 
   backend:
     platform: linux/amd64
     build:
-      context: .
+      context: ./backend
       dockerfile: dockerfile
       target: api
     container_name: paperstack-backend
     restart: unless-stopped
     depends_on:
-      kafka:
-        condition: service_healthy
-      mongo:
-        condition: service_healthy
-      qdrant:
-        condition: service_started
+      - kafka
     environment:
       NODE_ENV: production
       PORT: 8001
       UPLOAD_DIR: /app/uploads
-      MONGO_DB_URI: ${MONGO_DB_URI:-mongodb://${MONGO_INITDB_ROOT_USERNAME:-paperstack_admin}:${MONGO_INITDB_ROOT_PASSWORD:-change-me-mongo-password}@mongo:27017/paperstack?authSource=admin}
-      QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
+      MONGO_DB_URI: ${MONGO_DB_URI}
+      QDRANT_URL: ${QDRANT_URL}
       QDRANT_API_KEY: ${QDRANT_API_KEY:-}
       KAFKA_BROKERS: ${KAFKA_BROKERS:-kafka:29092}
       KAFKA_CLIENT_ID: ${KAFKA_CLIENT_ID:-paperstack-backend}
       KAFKA_TOPIC: ${KAFKA_TOPIC:-document-processing}
-      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      JWT_SECRET: ${JWT_SECRET}
       JWT_EXPIRATION_TIME: ${JWT_EXPIRATION_TIME:-3600}
       AUTH_COOKIE_NAME: ${AUTH_COOKIE_NAME:-access_token}
       EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-fastembed}
@@ -103,30 +56,25 @@ services:
       GROQ_API_KEY: ${GROQ_API_KEY:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
     ports:
-      - '8001:8001'
+      - '${BACKEND_HOST_PORT:-8001}:8001'
     volumes:
       - uploads_data:/app/uploads
 
   consumer:
     platform: linux/amd64
     build:
-      context: .
+      context: ./backend
       dockerfile: dockerfile
       target: consumer
     container_name: paperstack-consumer
     restart: unless-stopped
     depends_on:
-      kafka:
-        condition: service_healthy
-      mongo:
-        condition: service_healthy
-      qdrant:
-        condition: service_started
+      - kafka
     environment:
       NODE_ENV: production
       UPLOAD_DIR: /app/uploads
-      MONGO_DB_URI: ${MONGO_DB_URI:-mongodb://${MONGO_INITDB_ROOT_USERNAME:-paperstack_admin}:${MONGO_INITDB_ROOT_PASSWORD:-change-me-mongo-password}@mongo:27017/paperstack?authSource=admin}
-      QDRANT_URL: ${QDRANT_URL:-http://qdrant:6333}
+      MONGO_DB_URI: ${MONGO_DB_URI}
+      QDRANT_URL: ${QDRANT_URL}
       QDRANT_API_KEY: ${QDRANT_API_KEY:-}
       KAFKA_BROKERS: ${KAFKA_BROKERS:-kafka:29092}
       KAFKA_CLIENT_ID: ${KAFKA_CLIENT_ID:-paperstack-backend}
@@ -136,7 +84,21 @@ services:
     volumes:
       - uploads_data:/app/uploads
 
+  frontend:
+    platform: linux/amd64
+    build:
+      context: ./frontend
+      dockerfile: dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL}
+    container_name: paperstack-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - '${FRONTEND_HOST_PORT:-3000}:80'
+
 volumes:
-  mongo_data:
-  qdrant_data:
+  zookeeper_data:
+  kafka_data:
   uploads_data:
