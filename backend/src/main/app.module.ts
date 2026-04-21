@@ -13,7 +13,11 @@ import { ChatModule } from 'src/modules/chat/chat.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true, envFilePath: '.env' }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: '.env',
+      expandVariables: true,
+    }),
     DbModule,
     UserModule,
     AuthModule,
