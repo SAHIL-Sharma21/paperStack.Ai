@@ -15,7 +15,11 @@ import { DocumentConsumerService } from './document-consumer/document-consumer.s
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true, envFilePath: '.env' }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: '.env',
+      expandVariables: true,
+    }),
     DbModule,
     KafkaModule,
     DocumentsModule,
