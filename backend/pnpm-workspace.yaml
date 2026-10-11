@@ -1,0 +1,8 @@
+onlyBuiltDependencies:
+  - bcrypt
+  - onnxruntime-node
+
+ignoredBuiltDependencies:
+  - '@nestjs/core'
+  - protobufjs
+  - unrs-resolver
