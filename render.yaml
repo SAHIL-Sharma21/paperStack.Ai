@@ -1,0 +1,72 @@
+# Render Blueprint - PaperStack API on the free plan.
+# The Kafka consumer runs inside the API process (KAFKA_EMBEDDED_CONSUMER=true)
+# because background workers are not free on Render.
+# Values marked "sync: false" are secrets you enter in the Render dashboard.
+services:
+  - type: web
+    name: paperstack-api
+    runtime: docker
+    plan: free
+    region: singapore
+    branch: master
+    dockerContext: ./backend
+    dockerfilePath: ./backend/dockerfile
+    healthCheckPath: /api/v1
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: '8001'
+      - key: NODE_OPTIONS
+        value: --max-old-space-size=384
+      - key: CORS_ORIGINS
+        value: https://paperstack.sahil21.dev
+
+      - key: MONGO_DB_URI
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRATION_TIME
+        value: '3600'
+
+      - key: QDRANT_URL
+        sync: false
+      - key: QDRANT_API_KEY
+        sync: false
+
+      # The local embedding model does not fit in 512 MB, so production uses Gemini
+      - key: EMBEDDING_PROVIDER
+        value: gemini
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: LLM_PROVIDER
+        value: groq
+      - key: GROQ_API_KEY
+        sync: false
+
+      - key: DOCUMENT_PROCESSING_MODE
+        value: kafka
+      - key: KAFKA_EMBEDDED_CONSUMER
+        value: 'true'
+      - key: KAFKA_FALLBACK_INLINE
+        value: 'true'
+      - key: KAFKA_TOPIC
+        value: document-processing
+      - key: KAFKA_BROKERS
+        sync: false
+      # PEM content or a path to a Render secret file (e.g. /etc/secrets/kafka-ca.pem)
+      - key: KAFKA_SSL_CA
+        sync: false
+      - key: KAFKA_SSL_CERT
+        sync: false
+      - key: KAFKA_SSL_KEY
+        sync: false
+
+      - key: MAX_UPLOAD_MB
+        value: '5'
+      - key: MAX_PDF_PAGES
+        value: '30'
+      - key: MAX_DOCUMENTS_PER_USER
+        value: '5'
+      - key: MAX_CHAT_MESSAGES_PER_DAY
+        value: '30'

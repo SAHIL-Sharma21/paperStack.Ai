@@ -13,14 +13,17 @@ import {
   Res,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Throttle } from '@nestjs/throttler';
 import type { Response as ExpressResponse } from 'express';
 import { AuthService, AuthResponse } from './auth.service';
 import { SignupDto } from './dtos/signup.dto';
 import { LoginDto } from './dtos/login.dto';
+import { AUTH_THROTTLE } from '../../common/constants/throttle.constants';
 
 const DEFAULT_COOKIE_MAX_AGE_MS = 60 * 60 * 1000; // 1 hour
 
 @Controller('auth')
+@Throttle(AUTH_THROTTLE)
 export class AuthController {
   constructor(
     private readonly authService: AuthService,

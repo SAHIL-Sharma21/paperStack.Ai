@@ -47,6 +47,19 @@ export type ConversationListItem = {
   createdAt?: string;
 };
 
+export type UsageQuota = {
+  used: number;
+  limit: number;
+};
+
+export type UsageSummary = {
+  plan: 'free';
+  documents: UsageQuota;
+  chatMessagesToday: UsageQuota & { resetsAt: string };
+  maxUploadMb: number;
+  maxPdfPages: number;
+};
+
 export type ConversationDetail = {
   id: string;
   documentId: string;

@@ -12,6 +12,10 @@ import { KafkaModule } from '../modules/kafka/kafka.module';
 import { EmbeddingsModule } from '../modules/embeddings/embeddings.module';
 import { VectordbModule } from '../modules/vectordb/vectordb.module';
 import { DocumentConsumerService } from './document-consumer/document-consumer.service';
+import {
+  DOCUMENT_CONSUMER_OPTIONS,
+  type DocumentConsumerOptions,
+} from './document-consumer/document-consumer.options';
 
 @Module({
   imports: [
@@ -27,6 +31,12 @@ import { DocumentConsumerService } from './document-consumer/document-consumer.s
     EmbeddingsModule,
     VectordbModule,
   ],
-  providers: [DocumentConsumerService],
+  providers: [
+    DocumentConsumerService,
+    {
+      provide: DOCUMENT_CONSUMER_OPTIONS,
+      useValue: { enabled: true, embedded: false } as DocumentConsumerOptions,
+    },
+  ],
 })
 export class ConsumerModule {}

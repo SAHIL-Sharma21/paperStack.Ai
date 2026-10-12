@@ -5,6 +5,7 @@ import type {
   ConversationListItem,
   DocumentItem,
   SearchResponse,
+  UsageSummary,
 } from './types';
 const DEFAULT_API_BASE_URL = 'http://localhost:8001/api/v1';
 
@@ -88,6 +89,9 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
       }
     } catch {
       message = `Request failed with status ${response.status}`;
+    }
+    if (response.status === 413) {
+      message = 'This file is too large for the free plan.';
     }
     throw new ApiError(message, response.status);
   }
@@ -260,6 +264,12 @@ export const chatApi = {
       `/documents/${documentId}/conversations/${conversationId}`,
       { method: HTTP_METHODS.DELETE },
     );
+  },
+};
+
+export const usageApi = {
+  get(): Promise<UsageSummary> {
+    return request<UsageSummary>('/usage');
   },
 };
 

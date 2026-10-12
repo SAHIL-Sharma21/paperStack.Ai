@@ -14,7 +14,10 @@ import {
   Res,
   NotFoundException,
   BadRequestException,
+  HttpException,
+  HttpStatus,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
@@ -29,6 +32,8 @@ import {
 } from './dto/chat-response.dto';
 import { COMPLETED_STATUS } from '../documents/constant';
 import { ParseObjectIdPipe } from '../../common/pipes/parse-object-id.pipe';
+import { UsageService } from '../usage/usage.service';
+import { CHAT_THROTTLE } from '../../common/constants/throttle.constants';
 
 @Controller('documents')
 @UseGuards(JwtAuthGuard)
@@ -37,6 +42,7 @@ export class ChatController {
     private readonly chatService: ChatService,
     private readonly ragService: RagService,
     private readonly documentsService: DocumentsService,
+    private readonly usageService: UsageService,
   ) {}
 
   /**
@@ -45,6 +51,7 @@ export class ChatController {
    * Body: { message, conversationId? }
    */
   @Post(':documentId/chat')
+  @Throttle(CHAT_THROTTLE)
   async streamChat(
     @Param('documentId', ParseObjectIdPipe) documentId: string,
     @Body() dto: ChatRequestDto,
@@ -61,6 +68,14 @@ export class ChatController {
     if (doc.status !== COMPLETED_STATUS) {
       throw new BadRequestException(
         'Document is still processing. Please wait until it is completed.',
+      );
+    }
+
+    const allowed = await this.usageService.tryConsumeChatMessage(userId);
+    if (!allowed) {
+      throw new HttpException(
+        `Daily chat limit reached: the free plan allows ${this.usageService.limits.maxChatMessagesPerDay} messages per day. It resets at midnight UTC.`,
+        HttpStatus.TOO_MANY_REQUESTS,
       );
     }
 
@@ -108,6 +123,9 @@ export class ChatController {
       }
     } catch (err) {
       console.error('[ChatController] RAG stream error:', err);
+      if (fullResponse.length === 0) {
+        await this.usageService.refundChatMessage(userId).catch(() => {});
+      }
       res.write(
         `data: ${JSON.stringify({
           error: 'Failed to generate response',

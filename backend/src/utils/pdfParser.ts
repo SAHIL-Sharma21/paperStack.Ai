@@ -20,3 +20,15 @@ export const parsePdf = async (fullPath: string): Promise<string> => {
     await parser?.destroy();
   }
 };
+
+export const getPdfPageCount = async (fullPath: string): Promise<number> => {
+  let parser: PDFParse | undefined;
+  try {
+    const dataBuffer = await fs.promises.readFile(fullPath);
+    parser = new PDFParse({ data: dataBuffer });
+    const info = await parser.getInfo();
+    return info.total;
+  } finally {
+    await parser?.destroy();
+  }
+};

@@ -5,6 +5,7 @@ import { useAppDispatch, useAppSelector } from '../app/hooks';
 import { logout } from '../modules/auth/store/authSlice';
 import { selectCurrentUser, selectIsAuthenticated } from '../modules/auth/store/selectors';
 import { ProfileMenu } from './ProfileMenu';
+import { UsageBadge } from './UsageBadge';
 import { cn } from '../lib/utils';
 
 export function Layout() {
@@ -64,6 +65,7 @@ export function Layout() {
                 <NavLink to="/search" className={navItem}>
                   <Search className="h-4 w-4" /> Search
                 </NavLink>
+                <UsageBadge />
                 {user ? <ProfileMenu user={user} onLogout={handleLogout} /> : null}
               </>
             ) : (

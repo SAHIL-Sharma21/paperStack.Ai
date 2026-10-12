@@ -16,6 +16,7 @@ import { DocumentsModule } from '../documents/documents.module';
 import { EmbeddingsModule } from '../embeddings/embeddings.module';
 import { VectordbModule } from '../vectordb/vectordb.module';
 import { LlmModule } from '../llm/llm.module';
+import { UsageModule } from '../usage/usage.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { LlmModule } from '../llm/llm.module';
     EmbeddingsModule,
     VectordbModule,
     LlmModule,
+    UsageModule,
   ],
   controllers: [ChatController],
   providers: [ChatService, RagService],

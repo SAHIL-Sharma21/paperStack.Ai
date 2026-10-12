@@ -22,6 +22,7 @@ import {
   streamDocumentChat,
 } from '../../../lib/api';
 import type { ChatTurn } from '../../../lib/types';
+import { USAGE_QUERY_KEY, useUsageQuery } from '../../../lib/usage';
 import { cn } from '../../../lib/utils';
 import { COMPLETED_STATUS } from './constants';
 
@@ -94,6 +95,7 @@ export function DocumentChatPage() {
   });
 
   const doc = documentsQuery.data?.find((d) => d.id === documentId);
+  const { data: usage } = useUsageQuery();
 
   const conversationsQuery = useQuery({
     queryKey: ['conversations', documentId],
@@ -309,6 +311,7 @@ export function DocumentChatPage() {
         abortRef.current = null;
         setBusy(false);
       }
+      void queryClient.invalidateQueries({ queryKey: USAGE_QUERY_KEY });
     }
   }, [documentId, input, busy, doc?.status, conversationId, queryClient]);
 
@@ -474,6 +477,12 @@ export function DocumentChatPage() {
                 disabled={!canChat || busy || loadingConversationId !== null}
                 className="min-h-11 border-zinc-800 bg-zinc-950/50 text-zinc-100 placeholder:text-zinc-600 focus-visible:ring-inset"
               />
+              {usage ? (
+                <p className="mt-1.5 text-xs text-zinc-500">
+                  {usage.chatMessagesToday.used}/{usage.chatMessagesToday.limit} free messages used
+                  today
+                </p>
+              ) : null}
             </div>
             <Button
               type="submit"

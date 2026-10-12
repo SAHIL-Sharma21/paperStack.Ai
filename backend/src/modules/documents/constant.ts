@@ -4,8 +4,6 @@ export const FILE_TYPES = {
   DOCX: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
 };
 
-export const MAX_SIZE_BYTES = 50 * 1024 * 1024; // 50MB
-
 export const PROCESSING_STATUS = 'processing';
 export const COMPLETED_STATUS = 'completed';
 export const FAILED_STATUS = 'failed';

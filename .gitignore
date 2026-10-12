@@ -87,4 +87,5 @@ volumes/
 # -----------------------------
 # ML model cache (FastEmbed downloads ~128MB on first run)
 # -----------------------------
-**/local_cache/
+**/local_cache/*
+!**/local_cache/.gitkeep

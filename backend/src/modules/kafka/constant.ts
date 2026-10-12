@@ -5,3 +5,6 @@ export const BROKER_PATTERN = /^([^:\s]+):(\d{1,5})$/;
 
 export const MIN_PORT = 1;
 export const MAX_PORT = 65535;
+
+/** After a failed connect, skip new attempts for this long so uploads fall back quickly. */
+export const CONNECT_FAILURE_COOLDOWN_MS = 60_000;

@@ -2,17 +2,18 @@
  * Multer configuration for document uploads
  *
  * - Accepts: PDF, Word (.doc, .docx)
- * - Max size: 10MB
+ * - Max size: MAX_UPLOAD_MB plan limit (set in DocumentsModule via MulterModule)
  * - Saves to temp dir first; StorageService moves to final location
  *
  * @author: Sahil Sharma
  */
 
+import { BadRequestException } from '@nestjs/common';
 import { diskStorage } from 'multer';
 import { extname, join } from 'path';
 import { randomUUID } from 'crypto';
 import fs from 'fs';
-import { FILE_TYPES, MAX_SIZE_BYTES } from '../constant';
+import { FILE_TYPES } from '../constant';
 
 const ALLOWED_MIMES = [FILE_TYPES.PDF, FILE_TYPES.DOC, FILE_TYPES.DOCX];
 
@@ -31,13 +32,18 @@ export const multerDocumentConfig = {
       cb(null, `${randomUUID()}${ext}`);
     },
   }),
-  limits: { fileSize: MAX_SIZE_BYTES },
-  fileFilter: (req: any, file: Express.Multer.File, cb: any) => {
+  fileFilter: (
+    req: unknown,
+    file: Express.Multer.File,
+    cb: (error: Error | null, acceptFile: boolean) => void,
+  ) => {
     if (ALLOWED_MIMES.includes(file.mimetype)) {
       cb(null, true);
     } else {
       cb(
-        new Error(`Invalid file type. Allowed: PDF, Word (.doc, .docx)`),
+        new BadRequestException(
+          'Invalid file type. Allowed: PDF, Word (.doc, .docx)',
+        ),
         false,
       );
     }

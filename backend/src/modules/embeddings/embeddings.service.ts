@@ -10,6 +10,7 @@ import { GoogleGenAI } from '@google/genai';
 import { FlagEmbedding, EmbeddingModel } from 'fastembed';
 import {
   FASTEMBED_EMBEDDING_DIM,
+  GEMINI_EMBED_BATCH_SIZE,
   GEMINI_EMBEDDING_DIM,
   MAX_CHUNK_CHARS,
   type EmbeddingProvider,
@@ -66,6 +67,24 @@ export class EmbeddingsService implements OnModuleInit {
     return embedding.values;
   }
 
+  private async embedGeminiBatch(texts: string[]): Promise<number[][]> {
+    if (!this.geminiClient) throw new Error('Gemini client not initialized');
+    const response = await this.geminiClient.models.embedContent({
+      model: 'gemini-embedding-001',
+      contents: texts,
+    });
+    const embeddings = response.embeddings ?? [];
+    if (embeddings.length !== texts.length) {
+      throw new Error(
+        `Gemini returned ${embeddings.length} embeddings for ${texts.length} texts`,
+      );
+    }
+    return embeddings.map((e) => {
+      if (!e.values) throw new Error('No embedding from Gemini');
+      return e.values;
+    });
+  }
+
   private async embedFastembed(text: string): Promise<number[]> {
     if (!this.fastembed) throw new Error('FastEmbed not initialized');
     const gen = this.fastembed.passageEmbed([text], 1);
@@ -81,7 +100,19 @@ export class EmbeddingsService implements OnModuleInit {
     const chunks = this.chunkText(text);
     const results: Array<{ text: string; embedding: number[] }> = [];
 
-    if (this.provider === 'fastembed' && this.fastembed && chunks.length > 1) {
+    if (this.provider === 'gemini' && chunks.length > 1) {
+      for (let i = 0; i < chunks.length; i += GEMINI_EMBED_BATCH_SIZE) {
+        const batch = chunks.slice(i, i + GEMINI_EMBED_BATCH_SIZE);
+        const vectors = await this.embedGeminiBatch(batch);
+        batch.forEach((chunk, j) => {
+          results.push({ text: chunk, embedding: vectors[j] });
+        });
+      }
+    } else if (
+      this.provider === 'fastembed' &&
+      this.fastembed &&
+      chunks.length > 1
+    ) {
       const gen = this.fastembed.passageEmbed(chunks, 8);
       let idx = 0;
       for await (const batch of gen) {

@@ -21,15 +21,20 @@ import {
 } from '@nestjs/common';
 import * as fs from 'fs';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Throttle } from '@nestjs/throttler';
 import { DocumentsService } from './documents.service';
+import { DocumentProcessorService } from './document-processor.service';
 import { DocumentResponseDto } from './dto/document-response.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { UserDocument } from '../users/user.schema';
 import { StorageService } from '../storage/storage.service';
 import { KafkaService } from '../kafka/kafka.service';
+import { UsageService } from '../usage/usage.service';
 import { multerDocumentConfig } from './config/multer.config';
-import { FAILED_STATUS } from './constant';
+import { FAILED_STATUS, FILE_TYPES } from './constant';
+import { getPdfPageCount } from '../../utils/pdfParser';
+import { UPLOAD_THROTTLE } from '../../common/constants/throttle.constants';
 import { EmbeddingsService } from '../embeddings/embeddings.service';
 import { VectordbService } from '../vectordb/vectordb.service';
 import {
@@ -106,17 +111,21 @@ export class DocumentsController {
     private readonly kafkaService: KafkaService,
     private readonly embeddingsService: EmbeddingsService,
     private readonly vectordbService: VectordbService,
+    private readonly usageService: UsageService,
+    private readonly documentProcessor: DocumentProcessorService,
     @Inject(forwardRef(() => ChatService))
     private readonly chatService: ChatService,
   ) {}
 
   /**
    * Upload a document (PDF or Word).
+   * 0. Enforce free-plan limits (document count, PDF pages)
    * 1. Save file to local storage (TODO: S3)
    * 2. Create document metadata in DB (status: processing)
-   * 3. Publish documentId to Kafka for async processing
+   * 3. Publish documentId to Kafka for async processing (inline fallback)
    */
   @Post('upload')
+  @Throttle(UPLOAD_THROTTLE)
   @UseInterceptors(FileInterceptor('file', multerDocumentConfig))
   async upload(
     @UploadedFile() file: Express.Multer.File | undefined,
@@ -127,6 +136,16 @@ export class DocumentsController {
     }
 
     const userId = user._id.toString();
+
+    try {
+      await this.usageService.assertCanUploadDocument(userId);
+      if (file.mimetype === FILE_TYPES.PDF) {
+        await this.assertPdfWithinPageLimit(file.path);
+      }
+    } catch (err) {
+      await fs.promises.unlink(file.path).catch(() => {});
+      throw err;
+    }
 
     // 1. Save file (local disk now; TODO: S3 in StorageService)
     const { storagePath } = await this.storageService.save(file, userId);
@@ -142,7 +161,7 @@ export class DocumentsController {
 
     // 3. Publish to Kafka - consumer will process (embeddings, vector DB, etc.)
     try {
-      await this.kafkaService.publishDocumentForProcessing(doc._id.toString());
+      await this.dispatchProcessing(doc._id.toString());
     } catch (err) {
       await this.documentsService.updateStatus(
         doc._id.toString(),
@@ -153,6 +172,52 @@ export class DocumentsController {
     }
 
     return this.toResponseDto(doc);
+  }
+
+  private async assertPdfWithinPageLimit(filePath: string): Promise<void> {
+    const { maxPdfPages } = this.usageService.limits;
+    let pages: number;
+    try {
+      pages = await getPdfPageCount(filePath);
+    } catch {
+      throw new BadRequestException(
+        'Could not read this PDF. It may be corrupted or password-protected.',
+      );
+    }
+    if (pages > maxPdfPages) {
+      throw new BadRequestException(
+        `This PDF has ${pages} pages. The free plan allows up to ${maxPdfPages} pages per document.`,
+      );
+    }
+  }
+
+  /**
+   * Kafka first; when Kafka is disabled (inline mode) or unreachable and the
+   * fallback is on, the API processes the document in the background itself.
+   */
+  private async dispatchProcessing(documentId: string): Promise<void> {
+    if (this.kafkaService.enabled) {
+      try {
+        await this.kafkaService.publishDocumentForProcessing(documentId);
+        return;
+      } catch (err) {
+        if (!this.kafkaService.fallbackInline) throw err;
+        console.warn(
+          '[DocumentsController] Kafka publish failed, processing inline:',
+          (err as Error).message,
+        );
+      }
+    }
+
+    void this.documentProcessor
+      .processDocument(documentId)
+      .catch((err: unknown) => {
+        console.error(
+          '[DocumentsController] Inline processing failed:',
+          documentId,
+          err,
+        );
+      });
   }
 
   /**

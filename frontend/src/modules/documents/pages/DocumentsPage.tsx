@@ -7,6 +7,7 @@ import { DocumentPreviewDialog } from '../../../components/DocumentPreviewDialog
 import { Input } from '../../../components/ui/input';
 import { documentsApi } from '../../../lib/api';
 import type { DocumentItem } from '../../../lib/types';
+import { USAGE_QUERY_KEY, useUsageQuery } from '../../../lib/usage';
 import {
   DocumentMobileCard,
   DocumentTableRow,
@@ -64,6 +65,7 @@ export function DocumentsPage() {
     queryKey: ['documents'],
     queryFn: documentsApi.list,
   });
+  const { data: usage } = useUsageQuery();
 
   const deleteMutation = useMutation({
     mutationFn: documentsApi.remove,
@@ -72,6 +74,7 @@ export function DocumentsPage() {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['documents'] });
+      void queryClient.invalidateQueries({ queryKey: USAGE_QUERY_KEY });
     },
     onError: (error) => {
       console.error('[DocumentsPage] delete failed:', error);
@@ -131,7 +134,11 @@ export function DocumentsPage() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <StatCard label="Total documents" value={String(docs.length)} />
+        <StatCard
+          label="Total documents"
+          value={usage ? `${docs.length} / ${usage.documents.limit}` : String(docs.length)}
+          hint={usage ? `Free plan: up to ${usage.documents.limit} documents` : undefined}
+        />
         <StatCard
           label="Libraries"
           value="0"
